@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Search, User, LogOut, Plus } from 'lucide-react'
+import { Search, User, LogOut, Plus, Heart, Shield } from 'lucide-react'
 import { useAuthStore } from '../../utils/store'
 
 function Header() {
@@ -20,13 +20,22 @@ function Header() {
             <Link to="/courses" className="text-gray-700 hover:text-primary-600 transition">
               Все курсы
             </Link>
-            <Link to="/categories" className="text-gray-700 hover:text-primary-600 transition">
-              Категории
-            </Link>
             {isAuthenticated && (
-              <Link to="/add-course" className="flex items-center space-x-1 text-gray-700 hover:text-primary-600 transition">
-                <Plus size={18} />
-                <span>Добавить курс</span>
+              <>
+                <Link to="/favorites" className="flex items-center space-x-1 text-gray-700 hover:text-primary-600 transition">
+                  <Heart size={18} />
+                  <span>Избранное</span>
+                </Link>
+                <Link to="/add-course" className="flex items-center space-x-1 text-gray-700 hover:text-primary-600 transition">
+                  <Plus size={18} />
+                  <span>Добавить курс</span>
+                </Link>
+              </>
+            )}
+            {user?.role === 'admin' && (
+              <Link to="/admin" className="flex items-center space-x-1 text-purple-600 hover:text-purple-700 transition font-semibold">
+                <Shield size={18} />
+                <span>Админ</span>
               </Link>
             )}
           </nav>
