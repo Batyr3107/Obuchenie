@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from app.db.base import get_db
 from app.models.course import Course, CourseStatus
+from app.core.validators import validate_search_query
 
 router = APIRouter()
 
@@ -23,9 +24,12 @@ async def autocomplete_search(
 ):
     """Автодополнение поиска"""
 
+    # Валидация поискового запроса
+    validated_query = validate_search_query(q)
+
     courses = db.query(Course).filter(
         Course.status == CourseStatus.APPROVED,
-        Course.title.ilike(f"%{q}%")
+        Course.title.ilike(f"%{validated_query}%")
     ).order_by(
         Course.avg_rating.desc()
     ).limit(limit).all()

@@ -26,17 +26,17 @@ class Report(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     # Кто сообщил
-    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
 
     # На что жалоба
-    review_id = Column(Integer, ForeignKey('reviews.id', ondelete='CASCADE'), nullable=False)
+    review_id = Column(Integer, ForeignKey('reviews.id', ondelete='CASCADE'), nullable=False, index=True)
 
     # Причина
     reason = Column(SQLEnum(ReportReason), nullable=False)
     description = Column(Text, nullable=True)
 
     # Статус
-    status = Column(SQLEnum(ReportStatus), default=ReportStatus.PENDING)
+    status = Column(SQLEnum(ReportStatus), default=ReportStatus.PENDING, index=True)
 
     # Временные метки
     created_at = Column(DateTime, default=datetime.utcnow)

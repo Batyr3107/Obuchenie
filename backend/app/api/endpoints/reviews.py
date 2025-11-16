@@ -11,6 +11,7 @@ from app.models.user import User
 from app.schemas.review import ReviewCreate, ReviewUpdate, ReviewResponse
 from app.api.dependencies.auth import get_current_active_user
 from app.core.config import settings
+from app.core.validators import validate_review_text, sanitize_text
 
 router = APIRouter()
 
@@ -142,12 +143,19 @@ async def create_review(
             detail=f"Account must be at least {settings.ACCOUNT_MIN_AGE_DAYS} days old to leave reviews"
         )
 
+    # Валидация и санитизация текста отзыва
+    validated_review_text = validate_review_text(review_data.review_text)
+
+    # Санитизация pros и cons
+    sanitized_pros = [sanitize_text(item, max_length=500) for item in review_data.pros] if review_data.pros else []
+    sanitized_cons = [sanitize_text(item, max_length=500) for item in review_data.cons] if review_data.cons else []
+
     # Вычисление общего рейтинга
     overall_rating = calculate_overall_rating(review_data)
 
     # Конвертация списков в JSON строки
-    pros_json = json.dumps(review_data.pros) if review_data.pros else None
-    cons_json = json.dumps(review_data.cons) if review_data.cons else None
+    pros_json = json.dumps(sanitized_pros) if sanitized_pros else None
+    cons_json = json.dumps(sanitized_cons) if sanitized_cons else None
 
     # Создание отзыва
     new_review = Review(
@@ -159,7 +167,7 @@ async def create_review(
         price_quality=review_data.price_quality,
         practical=review_data.practical,
         overall_rating=overall_rating,
-        review_text=review_data.review_text,
+        review_text=validated_review_text,
         pros=pros_json,
         cons=cons_json,
         recommend=review_data.recommend,
@@ -221,8 +229,13 @@ async def update_review(
     update_data = review_data.model_dump(exclude_unset=True)
 
     for field, value in update_data.items():
-        if field in ['pros', 'cons'] and value is not None:
-            value = json.dumps(value)
+        if field == 'review_text' and value is not None:
+            # Валидация текста отзыва
+            value = validate_review_text(value)
+        elif field in ['pros', 'cons'] and value is not None:
+            # Санитизация и конвертация в JSON
+            sanitized = [sanitize_text(item, max_length=500) for item in value]
+            value = json.dumps(sanitized)
         setattr(review, field, value)
 
     # Пересчет общего рейтинга если изменились оценки

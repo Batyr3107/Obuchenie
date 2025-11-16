@@ -8,9 +8,9 @@ class Favorite(Base):
     __tablename__ = "favorites"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    course_id = Column(Integer, ForeignKey('courses.id', ondelete='CASCADE'), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    course_id = Column(Integer, ForeignKey('courses.id', ondelete='CASCADE'), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     # Unique constraint - один пользователь может добавить курс в избранное только один раз
     __table_args__ = (UniqueConstraint('user_id', 'course_id', name='_user_course_favorite_uc'),)

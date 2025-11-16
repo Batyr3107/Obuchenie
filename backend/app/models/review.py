@@ -17,8 +17,8 @@ class Review(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     # Связи
-    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    course_id = Column(Integer, ForeignKey('courses.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    course_id = Column(Integer, ForeignKey('courses.id', ondelete='CASCADE'), nullable=False, index=True)
 
     # Оценки по критериям (1-5)
     content_quality = Column(Float, nullable=False)  # Качество материала

@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast'
 
 // Layout
 import Layout from './components/common/Layout'
+import ErrorBoundary from './components/common/ErrorBoundary'
 
 // Pages
 import HomePage from './pages/HomePage'
@@ -22,30 +23,32 @@ import ManageUsersPage from './pages/admin/ManageUsersPage'
 
 function App() {
   return (
-    <Router>
-      <Toaster position="top-right" />
-      <Layout>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/courses" element={<CoursesPage />} />
-          <Route path="/courses/:id" element={<CourseDetailPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+    <ErrorBoundary>
+      <Router>
+        <Toaster position="top-right" />
+        <Layout>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<HomePage />} />
+            <Route path="/courses" element={<CoursesPage />} />
+            <Route path="/courses/:id" element={<CourseDetailPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
 
-          {/* User Routes */}
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/add-course" element={<AddCoursePage />} />
-          <Route path="/favorites" element={<FavoritesPage />} />
-          <Route path="/compare" element={<CompareCoursesPage />} />
+            {/* User Routes */}
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/add-course" element={<AddCoursePage />} />
+            <Route path="/favorites" element={<FavoritesPage />} />
+            <Route path="/compare" element={<CompareCoursesPage />} />
 
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/courses" element={<ModerateCoursesPage />} />
-          <Route path="/admin/users" element={<ManageUsersPage />} />
-        </Routes>
-      </Layout>
-    </Router>
+            {/* Admin Routes */}
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/courses" element={<ModerateCoursesPage />} />
+            <Route path="/admin/users" element={<ManageUsersPage />} />
+          </Routes>
+        </Layout>
+      </Router>
+    </ErrorBoundary>
   )
 }
 
