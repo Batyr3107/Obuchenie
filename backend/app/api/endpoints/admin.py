@@ -1,18 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional
-from datetime import datetime
 
 from app.db.base import get_db
-from app.models.course import Course, CourseStatus
 from app.models.user import User, UserRole
-from app.models.review import Review
-from app.models.report import Report, ReportStatus
 from app.schemas.user import UserResponse
 from app.schemas.course import CourseResponse
 from app.api.dependencies.auth import get_current_admin
 from app.services.stats_service import StatsService
+from app.services.admin_service import AdminService
 
 router = APIRouter()
 
@@ -26,11 +23,12 @@ async def get_pending_courses(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Получить курсы ожидающие модерации"""
-    courses = db.query(Course).filter(
-        Course.status == CourseStatus.PENDING
-    ).order_by(Course.created_at.desc()).offset(skip).limit(limit).all()
+    """
+    Получить курсы ожидающие модерации
 
+    CLEAN CODE: Вся логика в AdminService
+    """
+    courses = await AdminService.get_pending_courses(db, skip, limit)
     return courses
 
 
@@ -40,17 +38,13 @@ async def approve_course(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Одобрить курс"""
-    course = db.query(Course).filter(Course.id == course_id).first()
+    """
+    Одобрить курс
 
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
-
+    CLEAN CODE: Вся логика в AdminService
+    """
     try:
-        course.status = CourseStatus.APPROVED
-        db.commit()
-        db.refresh(course)
-
+        course = await AdminService.approve_course(db, course_id)
         return course
     except SQLAlchemyError as e:
         db.rollback()
@@ -63,16 +57,12 @@ async def reject_course(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Отклонить курс"""
-    course = db.query(Course).filter(Course.id == course_id).first()
+    """
+    Отклонить курс
 
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
-
-    course.status = CourseStatus.REJECTED
-    db.commit()
-    db.refresh(course)
-
+    CLEAN CODE: Вся логика в AdminService
+    """
+    course = await AdminService.reject_course(db, course_id)
     return course
 
 
@@ -87,19 +77,12 @@ async def get_all_users(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Получить список всех пользователей"""
-    query = db.query(User)
+    """
+    Получить список всех пользователей
 
-    if search:
-        query = query.filter(
-            (User.email.ilike(f"%{search}%")) |
-            (User.full_name.ilike(f"%{search}%"))
-        )
-
-    if role:
-        query = query.filter(User.role == role)
-
-    users = query.order_by(User.created_at.desc()).offset(skip).limit(limit).all()
+    CLEAN CODE: Вся логика в AdminService
+    """
+    users = await AdminService.get_users(db, skip, limit, search, role)
     return users
 
 
@@ -109,20 +92,14 @@ async def block_user(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Заблокировать пользователя"""
-    user = db.query(User).filter(User.id == user_id).first()
+    """
+    Заблокировать пользователя
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if user.role == UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="Cannot block admin")
-
+    CLEAN CODE: Вся логика в AdminService
+    """
     try:
-        user.is_blocked = True
-        db.commit()
-
-        return {"message": "User blocked successfully"}
+        result = await AdminService.block_user(db, user_id)
+        return result
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to block user: {str(e)}")
@@ -134,16 +111,13 @@ async def unblock_user(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Разблокировать пользователя"""
-    user = db.query(User).filter(User.id == user_id).first()
+    """
+    Разблокировать пользователя
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user.is_blocked = False
-    db.commit()
-
-    return {"message": "User unblocked successfully"}
+    CLEAN CODE: Вся логика в AdminService
+    """
+    result = await AdminService.unblock_user(db, user_id)
+    return result
 
 
 @router.post("/users/{user_id}/role")
@@ -153,16 +127,13 @@ async def change_user_role(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Изменить роль пользователя"""
-    user = db.query(User).filter(User.id == user_id).first()
+    """
+    Изменить роль пользователя
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user.role = new_role
-    db.commit()
-
-    return {"message": f"User role changed to {new_role}"}
+    CLEAN CODE: Вся логика в AdminService
+    """
+    result = await AdminService.change_user_role(db, user_id, new_role)
+    return result
 
 
 # ============ МОДЕРАЦИЯ ОТЗЫВОВ ============
@@ -174,27 +145,14 @@ async def get_reported_reviews(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Получить отзывы с жалобами"""
-    # PERFORMANCE: Используем joinedload для предотвращения N+1 queries
-    reports = db.query(Report).options(
-        joinedload(Report.review).joinedload(Review.user),
-        joinedload(Report.review).joinedload(Review.course),
-        joinedload(Report.user)
-    ).filter(
-        Report.status == ReportStatus.PENDING
-    ).order_by(Report.created_at.desc()).offset(skip).limit(limit).all()
+    """
+    Получить отзывы с жалобами
 
-    # Группировка по отзывам
-    review_reports = {}
-    for report in reports:
-        if report.review_id not in review_reports:
-            review_reports[report.review_id] = {
-                "review": report.review,  # Используем уже загруженный relationship
-                "reports": []
-            }
-        review_reports[report.review_id]["reports"].append(report)
-
-    return list(review_reports.values())
+    CLEAN CODE: Вся логика в AdminService
+    PERFORMANCE: Используем joinedload для предотвращения N+1 queries
+    """
+    review_reports = await AdminService.get_reported_reviews(db, skip, limit)
+    return review_reports
 
 
 @router.post("/reviews/{review_id}/block")
@@ -203,26 +161,14 @@ async def block_review(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Заблокировать отзыв"""
-    review = db.query(Review).filter(Review.id == review_id).first()
+    """
+    Заблокировать отзыв
 
-    if not review:
-        raise HTTPException(status_code=404, detail="Review not found")
-
-    # Используем транзакцию для атомарной операции
+    CLEAN CODE: Вся логика в AdminService
+    """
     try:
-        review.is_blocked = True
-        review.is_approved = False
-
-        # Обновить статус всех жалоб на этот отзыв
-        db.query(Report).filter(Report.review_id == review_id).update({
-            "status": ReportStatus.RESOLVED,
-            "resolved_at": datetime.utcnow()
-        })
-
-        db.commit()
-
-        return {"message": "Review blocked successfully"}
+        result = await AdminService.block_review(db, review_id)
+        return result
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to block review: {str(e)}")
@@ -234,17 +180,13 @@ async def resolve_report(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Отклонить жалобу (отзыв нормальный)"""
-    report = db.query(Report).filter(Report.id == report_id).first()
+    """
+    Отклонить жалобу (отзыв нормальный)
 
-    if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
-
-    report.status = ReportStatus.REJECTED
-    report.resolved_at = datetime.utcnow()
-    db.commit()
-
-    return {"message": "Report rejected"}
+    CLEAN CODE: Вся логика в AdminService
+    """
+    result = await AdminService.resolve_report(db, report_id)
+    return result
 
 
 # ============ СТАТИСТИКА ============

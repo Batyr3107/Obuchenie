@@ -4,9 +4,8 @@ from typing import List
 from pydantic import BaseModel
 
 from app.db.base import get_db
-from app.models.course import Course, CourseStatus
-from app.core.validators import validate_search_query
 from app.core.cache import cache_manager
+from app.services.search_service import SearchService
 
 router = APIRouter()
 
@@ -23,29 +22,26 @@ async def autocomplete_search(
     limit: int = Query(10, ge=1, le=20),
     db: Session = Depends(get_db)
 ):
-    """Автодополнение поиска"""
+    """
+    Автодополнение поиска
 
-    # Валидация поискового запроса
-    validated_query = validate_search_query(q)
-
+    CLEAN CODE: Вся логика в SearchService
+    PERFORMANCE: Кэшируем результаты на 5 минут
+    """
     # PERFORMANCE: Кэшируем результаты автокомплита на 5 минут
-    cache_key = f"autocomplete:{validated_query}:{limit}"
+    cache_key = f"autocomplete:{q}:{limit}"
     cached_suggestions = cache_manager.get(cache_key)
 
     if cached_suggestions is not None:
         return cached_suggestions
 
-    courses = db.query(Course).filter(
-        Course.status == CourseStatus.APPROVED,
-        Course.title.ilike(f"%{validated_query}%")
-    ).order_by(
-        Course.avg_rating.desc()
-    ).limit(limit).all()
+    # CLEAN CODE: Используем SearchService вместо прямого db.query
+    courses = await SearchService.autocomplete(db, q, limit)
 
     suggestions = [
         SearchSuggestion(
-            id=course.id,
-            title=course.title,
+            id=course["id"],
+            title=course["title"],
             type="course"
         )
         for course in courses
@@ -59,7 +55,12 @@ async def autocomplete_search(
 
 @router.get("/popular")
 async def get_popular_searches(db: Session = Depends(get_db)):
-    """Популярные поисковые запросы (топ курсы)"""
+    """
+    Популярные поисковые запросы (топ курсы)
+
+    CLEAN CODE: Вся логика в SearchService
+    PERFORMANCE: Кэшируем популярные поиски на 30 минут
+    """
     # PERFORMANCE: Кэшируем популярные поиски на 30 минут
     cache_key = "popular_searches"
     cached_popular = cache_manager.get(cache_key)
@@ -67,11 +68,8 @@ async def get_popular_searches(db: Session = Depends(get_db)):
     if cached_popular is not None:
         return cached_popular
 
-    popular_courses = db.query(Course).filter(
-        Course.status == CourseStatus.APPROVED
-    ).order_by(
-        Course.views_count.desc()
-    ).limit(10).all()
+    # CLEAN CODE: Используем SearchService вместо прямого db.query
+    popular_courses = await SearchService.get_popular_courses(db, limit=10)
 
     result = [
         {"title": course.title, "id": course.id}
