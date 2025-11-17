@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { LogIn, Mail, Lock, Sparkles, Loader2 } from 'lucide-react'
 import { useAuthStore } from '../utils/store'
+import { fireConfetti } from '../utils/confetti'
 import toast from 'react-hot-toast'
 
 function LoginPage() {
@@ -24,13 +25,13 @@ function LoginPage() {
     const result = await login(formData.email, formData.password)
 
     if (result.success) {
-      toast.success('Вход выполнен успешно!')
-      navigate('/')
+      toast.success('🎉 Вход выполнен успешно!')
+      fireConfetti()
+      setTimeout(() => navigate('/'), 800)
     } else {
       toast.error(result.error || 'Ошибка входа')
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   return (

@@ -72,3 +72,20 @@ export const useCoursesStore = create((set) => ({
   setCourses: (courses) => set({ courses }),
   setCurrentCourse: (course) => set({ currentCourse: course }),
 }))
+
+export const useThemeStore = create((set) => ({
+  theme: localStorage.getItem('theme') || 'light',
+
+  toggleTheme: () => set((state) => {
+    const newTheme = state.theme === 'light' ? 'dark' : 'light'
+    localStorage.setItem('theme', newTheme)
+    document.documentElement.classList.toggle('dark', newTheme === 'dark')
+    return { theme: newTheme }
+  }),
+
+  setTheme: (theme) => set(() => {
+    localStorage.setItem('theme', theme)
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    return { theme }
+  }),
+}))

@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { useThemeStore } from './utils/store'
 
 // Layout
 import Layout from './components/common/Layout'
@@ -22,6 +24,19 @@ import ModerateCoursesPage from './pages/admin/ModerateCoursesPage'
 import ManageUsersPage from './pages/admin/ManageUsersPage'
 
 function App() {
+  const { theme } = useThemeStore()
+
+  // Initialize theme on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') || 'light'
+    document.documentElement.classList.toggle('dark', savedTheme === 'dark')
+  }, [])
+
+  // Update theme class when theme changes
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+  }, [theme])
+
   return (
     <ErrorBoundary>
       <Router>

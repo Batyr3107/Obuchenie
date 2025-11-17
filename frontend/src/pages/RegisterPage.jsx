@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { UserPlus, Mail, Lock, User as UserIcon, Sparkles, Loader2, Check } from 'lucide-react'
 import { useAuthStore } from '../utils/store'
+import { fireConfettiCannon } from '../utils/confetti'
 import toast from 'react-hot-toast'
 
 function RegisterPage() {
@@ -25,13 +26,13 @@ function RegisterPage() {
     const result = await register(formData)
 
     if (result.success) {
-      toast.success('Регистрация успешна! Теперь войдите в систему.')
-      navigate('/login')
+      toast.success('🎉 Регистрация успешна! Теперь войдите в систему.')
+      fireConfettiCannon()
+      setTimeout(() => navigate('/login'), 1500)
     } else {
       toast.error(result.error || 'Ошибка регистрации')
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   return (

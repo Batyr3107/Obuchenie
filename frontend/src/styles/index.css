@@ -5,6 +5,7 @@
 @layer base {
   body {
     @apply bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20 text-gray-900;
+    @apply dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:text-slate-100;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
       'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
       sans-serif;
@@ -14,7 +15,7 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-bold;
+    @apply font-bold dark:text-slate-100;
     letter-spacing: -0.02em;
   }
 }
@@ -36,6 +37,7 @@
     @apply bg-white/80 backdrop-blur-sm text-gray-800 border border-gray-200;
     @apply hover:bg-white hover:border-gray-300 hover:shadow-lg;
     @apply focus:ring-gray-400;
+    @apply dark:bg-slate-800/80 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800;
   }
 
   .btn-gradient {
@@ -48,6 +50,7 @@
     @apply w-full px-5 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl;
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
     @apply transition-all duration-300 placeholder:text-gray-400;
+    @apply dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-100 dark:placeholder:text-slate-400;
   }
 
   /* ========== Cards ========== */
@@ -55,12 +58,14 @@
     @apply bg-white/70 backdrop-blur-md rounded-2xl shadow-card p-6;
     @apply border border-white/20 transition-all duration-300;
     @apply hover:shadow-card-hover hover:-translate-y-1;
+    @apply dark:bg-slate-800/70 dark:border-slate-700/30 dark:shadow-slate-900/50;
   }
 
   .card-glass {
     @apply bg-white/40 backdrop-blur-xl rounded-2xl shadow-glass p-6;
     @apply border border-white/30 transition-all duration-300;
     @apply hover:bg-white/50 hover:shadow-glass hover:-translate-y-1;
+    @apply dark:bg-slate-800/40 dark:border-slate-700/30 dark:hover:bg-slate-800/50;
   }
 
   .card-premium {
@@ -128,5 +133,11 @@
 
   .section-subtitle {
     @apply text-xl text-gray-600 max-w-2xl mx-auto;
+    @apply dark:text-slate-400;
+  }
+
+  .badge-secondary {
+    @apply bg-gray-100 text-gray-700;
+    @apply dark:bg-slate-800 dark:text-slate-300;
   }
 }
