@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { BookOpen, Filter, X, Sparkles } from 'lucide-react'
 import CourseCard from '../components/courses/CourseCard'
 import CourseFilters from '../components/courses/CourseFilters'
+import SkeletonLoader from '../components/common/SkeletonLoader'
 import { coursesAPI } from '../services/api'
 import toast from 'react-hot-toast'
 
@@ -47,38 +49,100 @@ function CoursesPage() {
     setSearchParams(params)
   }
 
-  return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Все курсы</h1>
+  const resetFilters = () => {
+    handleFiltersChange({ search: '', category_id: null, min_rating: null })
+  }
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+  return (
+    <div className="space-y-8 animate-fade-in">
+      {/* Page Header */}
+      <div className="relative overflow-hidden bg-gradient-ocean rounded-3xl py-16 px-8 shadow-xl">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }}></div>
+
+        <div className="relative">
+          <div className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full mb-4">
+            <BookOpen size={18} className="text-white mr-2" />
+            <span className="text-white font-semibold">Каталог курсов</span>
+          </div>
+          <h1 className="text-5xl md:text-6xl font-bold text-white mb-4">
+            Все курсы
+          </h1>
+          <p className="text-xl text-white/90 max-w-2xl">
+            Найдите идеальный курс из {courses.length > 0 ? courses.length : '500+'} программ обучения
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Filters Sidebar */}
         <div className="lg:col-span-1">
-          <CourseFilters
-            filters={filters}
-            onFiltersChange={handleFiltersChange}
-          />
+          <div className="sticky top-24">
+            <div className="card-glass">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-2">
+                  <Filter size={20} className="text-primary-600" />
+                  <h3 className="font-bold text-lg">Фильтры</h3>
+                </div>
+                {(filters.search || filters.category_id || filters.min_rating) && (
+                  <button
+                    onClick={resetFilters}
+                    className="text-sm text-gray-600 hover:text-primary-600 transition-colors flex items-center space-x-1"
+                  >
+                    <X size={16} />
+                    <span>Сбросить</span>
+                  </button>
+                )}
+              </div>
+              <CourseFilters
+                filters={filters}
+                onFiltersChange={handleFiltersChange}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Courses Grid */}
         <div className="lg:col-span-3">
+          {/* Results count */}
+          {!loading && courses.length > 0 && (
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-gray-600">
+                Найдено <span className="font-bold text-gray-900">{courses.length}</span> {courses.length === 1 ? 'курс' : 'курсов'}
+              </p>
+            </div>
+          )}
+
           {loading ? (
-            <div className="text-center py-12">
-              <p className="text-gray-600">Загрузка...</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              <SkeletonLoader type="card" count={6} />
             </div>
           ) : courses.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {courses.map((course) => (
-                <CourseCard key={course.id} course={course} />
+              {courses.map((course, index) => (
+                <div
+                  key={course.id}
+                  className="animate-fade-in-up"
+                  style={{ animationDelay: `${index * 0.05}s` }}
+                >
+                  <CourseCard course={course} />
+                </div>
               ))}
             </div>
           ) : (
-            <div className="card text-center py-12">
-              <p className="text-gray-600 mb-4">Курсы не найдены</p>
+            <div className="card-glass text-center py-20 animate-scale-in">
+              <div className="w-24 h-24 bg-gradient-ocean rounded-full flex items-center justify-center mx-auto mb-6">
+                <BookOpen className="text-white" size={48} />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">Курсы не найдены</h3>
+              <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                Попробуйте изменить критерии поиска или сбросить все фильтры
+              </p>
               <button
-                onClick={() => handleFiltersChange({ search: '', category_id: null, min_rating: null })}
-                className="btn btn-secondary"
+                onClick={resetFilters}
+                className="btn btn-primary inline-flex items-center"
               >
+                <X size={18} className="mr-2" />
                 Сбросить фильтры
               </button>
             </div>
