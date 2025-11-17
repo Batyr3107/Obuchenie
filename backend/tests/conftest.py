@@ -45,12 +45,47 @@ def client(db):
 
 @pytest.fixture
 def test_user_data():
-    """Test user data"""
+    """
+    Test user data fixture
+
+    SECURITY: Test credentials are isolated to test environment
+    """
     return {
         "email": "test@example.com",
-        "password": "testpassword123",
+        "password": "TestPass123!",
         "full_name": "Test User"
     }
+
+
+@pytest.fixture
+def admin_user_data():
+    """Admin user data for testing admin functionality"""
+    return {
+        "email": "admin@example.com",
+        "password": "AdminPass123!",
+        "full_name": "Admin User"
+    }
+
+
+@pytest.fixture
+def weak_password_data():
+    """Weak password data for testing password validation"""
+    return [
+        "123",
+        "password",
+        "12345678",
+        "qwerty"
+    ]
+
+
+@pytest.fixture
+def strong_password_data():
+    """Strong password data for testing password validation"""
+    return [
+        "SecurePass123!",
+        "MyStr0ng!Pass",
+        "Test@Pass2024"
+    ]
 
 
 @pytest.fixture
@@ -64,4 +99,29 @@ def test_course_data():
         "format": "online",
         "price_type": "free",
         "language": "ru"
+    }
+
+
+@pytest.fixture
+def test_review_data():
+    """Test review data"""
+    return {
+        "rating": 5.0,
+        "content_quality": 5.0,
+        "instructors": 5.0,
+        "support": 4.0,
+        "price_quality": 5.0,
+        "practical": 4.5,
+        "comment": "Great course! Highly recommended."
+    }
+
+
+@pytest.fixture
+def test_category_data():
+    """Test category data"""
+    return {
+        "name": "Test Category",
+        "slug": "test-category",
+        "description": "This is a test category",
+        "icon": "test-icon"
     }

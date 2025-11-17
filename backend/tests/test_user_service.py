@@ -17,21 +17,17 @@ class TestUserServiceRegistration:
 
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_register_user_success(self):
+    async def test_register_user_success(self, test_user_data):
         """Тест: успешная регистрация"""
         # Arrange
         db_mock = Mock()
         db_mock.query().filter().first.return_value = None  # Email свободен
 
-        user_data = UserCreate(
-            email="test@example.com",
-            password="testpass123",
-            full_name="Test User"
-        )
+        user_data = UserCreate(**test_user_data)
 
         # Act
-        with patch('app.services.user_service.validate_email', return_value="test@example.com"):
-            with patch('app.services.user_service.sanitize_text', return_value="Test User"):
+        with patch('app.services.user_service.validate_email', return_value=test_user_data["email"]):
+            with patch('app.services.user_service.sanitize_text', return_value=test_user_data["full_name"]):
                 with patch('app.services.user_service.get_password_hash', return_value="hashed"):
                     user = await UserService.register_user(db_mock, user_data)
 
@@ -42,18 +38,16 @@ class TestUserServiceRegistration:
 
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_register_user_duplicate_email(self):
+    async def test_register_user_duplicate_email(self, test_user_data):
         """Тест: email уже зарегистрирован"""
         # Arrange
         db_mock = Mock()
         existing_user = Mock(spec=User)
         db_mock.query().filter().first.return_value = existing_user  # Email занят
 
-        user_data = UserCreate(
-            email="existing@example.com",
-            password="testpass123",
-            full_name="Test User"
-        )
+        duplicate_data = test_user_data.copy()
+        duplicate_data["email"] = "existing@example.com"
+        user_data = UserCreate(**duplicate_data)
 
         # Act & Assert
         with patch('app.services.user_service.validate_email', return_value="existing@example.com"):
@@ -69,28 +63,30 @@ class TestUserServiceAuthentication:
 
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_authenticate_user_success(self):
+    async def test_authenticate_user_success(self, test_user_data):
         """Тест: успешная аутентификация"""
         # Arrange
         db_mock = Mock()
         user_mock = Mock(spec=User)
-        user_mock.email = "test@example.com"
+        user_mock.email = test_user_data["email"]
         user_mock.hashed_password = "hashed_password"
         user_mock.is_active = True
 
         db_mock.query().filter().first.return_value = user_mock
 
         # Act
-        with patch('app.services.user_service.validate_email', return_value="test@example.com"):
+        with patch('app.services.user_service.validate_email', return_value=test_user_data["email"]):
             with patch('app.services.user_service.verify_password', return_value=True):
-                user = await UserService.authenticate_user(db_mock, "test@example.com", "password123")
+                user = await UserService.authenticate_user(
+                    db_mock, test_user_data["email"], test_user_data["password"]
+                )
 
         # Assert
         assert user == user_mock
 
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_authenticate_user_wrong_password(self):
+    async def test_authenticate_user_wrong_password(self, test_user_data):
         """Тест: неверный пароль"""
         # Arrange
         db_mock = Mock()
@@ -100,31 +96,35 @@ class TestUserServiceAuthentication:
         db_mock.query().filter().first.return_value = user_mock
 
         # Act & Assert
-        with patch('app.services.user_service.validate_email', return_value="test@example.com"):
+        with patch('app.services.user_service.validate_email', return_value=test_user_data["email"]):
             with patch('app.services.user_service.verify_password', return_value=False):
                 with pytest.raises(HTTPException) as exc_info:
-                    await UserService.authenticate_user(db_mock, "test@example.com", "wrongpass")
+                    await UserService.authenticate_user(
+                        db_mock, test_user_data["email"], "WrongPassword123!"
+                    )
 
                 assert exc_info.value.status_code == 401
 
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_authenticate_user_not_found(self):
+    async def test_authenticate_user_not_found(self, test_user_data):
         """Тест: пользователь не найден"""
         # Arrange
         db_mock = Mock()
         db_mock.query().filter().first.return_value = None  # Пользователь не найден
 
         # Act & Assert
-        with patch('app.services.user_service.validate_email', return_value="test@example.com"):
+        with patch('app.services.user_service.validate_email', return_value=test_user_data["email"]):
             with pytest.raises(HTTPException) as exc_info:
-                await UserService.authenticate_user(db_mock, "test@example.com", "password")
+                await UserService.authenticate_user(
+                    db_mock, test_user_data["email"], test_user_data["password"]
+                )
 
             assert exc_info.value.status_code == 401
 
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_authenticate_user_inactive(self):
+    async def test_authenticate_user_inactive(self, test_user_data):
         """Тест: пользователь неактивен"""
         # Arrange
         db_mock = Mock()
@@ -135,10 +135,12 @@ class TestUserServiceAuthentication:
         db_mock.query().filter().first.return_value = user_mock
 
         # Act & Assert
-        with patch('app.services.user_service.validate_email', return_value="test@example.com"):
+        with patch('app.services.user_service.validate_email', return_value=test_user_data["email"]):
             with patch('app.services.user_service.verify_password', return_value=True):
                 with pytest.raises(HTTPException) as exc_info:
-                    await UserService.authenticate_user(db_mock, "test@example.com", "password")
+                    await UserService.authenticate_user(
+                        db_mock, test_user_data["email"], test_user_data["password"]
+                    )
 
                 assert exc_info.value.status_code == 400
                 assert "inactive" in exc_info.value.detail.lower()
