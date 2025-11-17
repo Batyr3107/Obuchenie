@@ -1,0 +1,24 @@
+[bandit]
+# Bandit configuration file
+
+# Directories to exclude from scanning
+exclude_dirs = [
+    '/tests/',
+    '/venv/',
+    '/env/',
+    '/alembic/versions/'
+]
+
+# Tests to skip
+skips = [
+    'B101',  # Assert used - OK in tests
+    'B601'   # Paramiko calls - OK if we use it
+]
+
+# Severity level
+# LOW, MEDIUM, HIGH
+severity = MEDIUM
+
+# Confidence level
+# LOW, MEDIUM, HIGH
+confidence = MEDIUM

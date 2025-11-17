@@ -11,6 +11,7 @@ from app.db.base import Base, engine, SessionLocal
 from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.core.logging_config import setup_logging
 from app.core.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware
+from app.core.openapi import tags_metadata, description
 from app.core.exceptions import (
     validation_exception_handler,
     sqlalchemy_exception_handler,
@@ -35,9 +36,18 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    description="CourseRate API - платформа для рейтинга обучающих курсов",
+    description=description,
+    openapi_tags=tags_metadata,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    contact={
+        "name": "CourseRate API Support",
+        "email": "support@courserate.com",
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
+    },
 )
 
 
