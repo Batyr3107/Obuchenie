@@ -6,8 +6,33 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 import time
 import logging
+import uuid
 
 logger = logging.getLogger(__name__)
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware для добавления уникального Request ID к каждому запросу
+    Используется для трейсинга запросов в логах и между микросервисами
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        # Генерация или получение Request ID
+        request_id = request.headers.get("X-Request-ID")
+        if not request_id:
+            request_id = str(uuid.uuid4())
+
+        # Сохранение в состоянии запроса для доступа в endpoints
+        request.state.request_id = request_id
+
+        # Обработка запроса
+        response = await call_next(request)
+
+        # Добавление Request ID в ответ
+        response.headers["X-Request-ID"] = request_id
+
+        return response
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):

@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.db.base import Base, engine, SessionLocal
 from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.core.logging_config import setup_logging
-from app.core.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware
+from app.core.middleware import RequestIDMiddleware, RequestLoggingMiddleware, SecurityHeadersMiddleware
 from app.core.openapi import tags_metadata, description
 from app.core.exceptions import (
     validation_exception_handler,
@@ -85,6 +85,9 @@ app.add_exception_handler(Exception, general_exception_handler)
 
 # Rate limiting
 app.state.limiter = limiter
+
+# Request ID tracking middleware
+app.add_middleware(RequestIDMiddleware)
 
 # Security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
