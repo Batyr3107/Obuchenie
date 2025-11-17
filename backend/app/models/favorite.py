@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.base import Base
@@ -13,7 +13,11 @@ class Favorite(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     # Unique constraint - один пользователь может добавить курс в избранное только один раз
-    __table_args__ = (UniqueConstraint('user_id', 'course_id', name='_user_course_favorite_uc'),)
+    # PERFORMANCE: Composite index для оптимизации запросов
+    __table_args__ = (
+        UniqueConstraint('user_id', 'course_id', name='_user_course_favorite_uc'),
+        Index('ix_favorite_user_created', 'user_id', 'created_at'),  # Для сортировки избранного пользователя по дате
+    )
 
     # Relationships
     user = relationship("User", back_populates="favorites")

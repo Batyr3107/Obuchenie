@@ -95,8 +95,12 @@ def validate_url(url: str) -> str:
 
         return url
 
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid URL: {str(e)}")
+    except HTTPException:
+        # Пробрасываем HTTPException дальше без изменений
+        raise
+    except (ValueError, AttributeError) as e:
+        # Ошибки парсинга URL
+        raise HTTPException(status_code=400, detail=f"Invalid URL format: {str(e)}")
 
 
 def validate_course_slug(slug: str) -> str:

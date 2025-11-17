@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional
 from datetime import datetime
 
@@ -11,6 +12,7 @@ from app.models.report import Report, ReportStatus
 from app.schemas.user import UserResponse
 from app.schemas.course import CourseResponse
 from app.api.dependencies.auth import get_current_admin
+from app.services.stats_service import StatsService
 
 router = APIRouter()
 
@@ -44,11 +46,15 @@ async def approve_course(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    course.status = CourseStatus.APPROVED
-    db.commit()
-    db.refresh(course)
+    try:
+        course.status = CourseStatus.APPROVED
+        db.commit()
+        db.refresh(course)
 
-    return course
+        return course
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to approve course: {str(e)}")
 
 
 @router.post("/courses/{course_id}/reject", response_model=CourseResponse)
@@ -112,10 +118,14 @@ async def block_user(
     if user.role == UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Cannot block admin")
 
-    user.is_blocked = True
-    db.commit()
+    try:
+        user.is_blocked = True
+        db.commit()
 
-    return {"message": "User blocked successfully"}
+        return {"message": "User blocked successfully"}
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to block user: {str(e)}")
 
 
 @router.post("/users/{user_id}/unblock")
@@ -165,7 +175,12 @@ async def get_reported_reviews(
     db: Session = Depends(get_db)
 ):
     """Получить отзывы с жалобами"""
-    reports = db.query(Report).filter(
+    # PERFORMANCE: Используем joinedload для предотвращения N+1 queries
+    reports = db.query(Report).options(
+        joinedload(Report.review).joinedload(Review.user),
+        joinedload(Report.review).joinedload(Review.course),
+        joinedload(Report.user)
+    ).filter(
         Report.status == ReportStatus.PENDING
     ).order_by(Report.created_at.desc()).offset(skip).limit(limit).all()
 
@@ -174,7 +189,7 @@ async def get_reported_reviews(
     for report in reports:
         if report.review_id not in review_reports:
             review_reports[report.review_id] = {
-                "review": db.query(Review).filter(Review.id == report.review_id).first(),
+                "review": report.review,  # Используем уже загруженный relationship
                 "reports": []
             }
         review_reports[report.review_id]["reports"].append(report)
@@ -194,18 +209,23 @@ async def block_review(
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
 
-    review.is_blocked = True
-    review.is_approved = False
+    # Используем транзакцию для атомарной операции
+    try:
+        review.is_blocked = True
+        review.is_approved = False
 
-    # Обновить статус всех жалоб на этот отзыв
-    db.query(Report).filter(Report.review_id == review_id).update({
-        "status": ReportStatus.RESOLVED,
-        "resolved_at": datetime.utcnow()
-    })
+        # Обновить статус всех жалоб на этот отзыв
+        db.query(Report).filter(Report.review_id == review_id).update({
+            "status": ReportStatus.RESOLVED,
+            "resolved_at": datetime.utcnow()
+        })
 
-    db.commit()
+        db.commit()
 
-    return {"message": "Review blocked successfully"}
+        return {"message": "Review blocked successfully"}
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to block review: {str(e)}")
 
 
 @router.post("/reports/{report_id}/resolve")
@@ -234,29 +254,11 @@ async def get_admin_stats(
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Получить общую статистику платформы"""
+    """
+    Получить общую статистику платформы
 
-    stats = {
-        "users": {
-            "total": db.query(User).count(),
-            "active": db.query(User).filter(User.is_active == True).count(),
-            "blocked": db.query(User).filter(User.is_blocked == True).count(),
-        },
-        "courses": {
-            "total": db.query(Course).count(),
-            "approved": db.query(Course).filter(Course.status == CourseStatus.APPROVED).count(),
-            "pending": db.query(Course).filter(Course.status == CourseStatus.PENDING).count(),
-            "rejected": db.query(Course).filter(Course.status == CourseStatus.REJECTED).count(),
-        },
-        "reviews": {
-            "total": db.query(Review).count(),
-            "approved": db.query(Review).filter(Review.is_approved == True).count(),
-            "blocked": db.query(Review).filter(Review.is_blocked == True).count(),
-        },
-        "reports": {
-            "total": db.query(Report).count(),
-            "pending": db.query(Report).filter(Report.status == ReportStatus.PENDING).count(),
-        }
-    }
-
+    CLEAN CODE: Вся логика в StatsService
+    PERFORMANCE: 4 оптимизированных запроса вместо 8
+    """
+    stats = await StatsService.get_admin_stats(db)
     return stats

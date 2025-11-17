@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"c:\\Users\\JusanUser\\PycharmProjects\\Sport\\backend\\app\" -type d -exec sh -c 'test -f \"\"$1/__init__.py\"\" || echo \"\"$1\"\"' _ {} ;)",
+      "Bash(if exist \"c:\\Users\\JusanUser\\PycharmProjects\\Sport\\temp_clone\" rmdir /s /q \"c:\\Users\\JusanUser\\PycharmProjects\\Sport\\temp_clone\")",
+      "Bash(python -m pytest:*)",
+      "Bash(dir:*)",
+      "Bash(pytest:*)",
+      "Bash(pip install:*)",
+      "Bash(find:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

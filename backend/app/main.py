@@ -22,7 +22,7 @@ from app.core.exceptions import (
 )
 
 # Import routers
-from app.api.endpoints import auth, courses, reviews, categories, admin, favorites, reports, compare, search
+from app.api.endpoints import auth, courses, reviews, categories, admin, favorites, reports, compare, search, telegram
 
 # Настройка логирования
 setup_logging(log_level=settings.LOG_LEVEL if hasattr(settings, 'LOG_LEVEL') else "INFO")
@@ -114,6 +114,7 @@ app.include_router(favorites.router, prefix=f"{settings.API_V1_STR}/favorites", 
 app.include_router(reports.router, prefix=f"{settings.API_V1_STR}/reports", tags=["reports"])
 app.include_router(compare.router, prefix=f"{settings.API_V1_STR}/compare", tags=["compare"])
 app.include_router(search.router, prefix=f"{settings.API_V1_STR}/search", tags=["search"])
+app.include_router(telegram.router, prefix=f"{settings.API_V1_STR}/telegram", tags=["telegram"])
 
 
 

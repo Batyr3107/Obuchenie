@@ -1,12 +1,15 @@
 """
 Скрипт инициализации базы данных с начальными данными
 """
+import logging
 from sqlalchemy.orm import Session
 from app.db.base import SessionLocal, engine, Base
 from app.models import User, Category, Subcategory
 from app.core.security import get_password_hash
 from app.core.config import settings
 from slugify import slugify
+
+logger = logging.getLogger(__name__)
 
 
 def init_categories(db: Session):
@@ -84,7 +87,7 @@ def init_categories(db: Session):
         # Проверка существования категории
         existing = db.query(Category).filter(Category.slug == slugify(cat_data["name"])).first()
         if existing:
-            print(f"Category '{cat_data['name']}' already exists, skipping...")
+            logger.info(f"Category '{cat_data['name']}' already exists, skipping...")
             continue
 
         # Создание категории
@@ -106,7 +109,7 @@ def init_categories(db: Session):
             )
             db.add(subcategory)
 
-        print(f"✅ Created category: {cat_data['name']} with {len(cat_data.get('subcategories', []))} subcategories")
+        logger.info(f"Created category: {cat_data['name']} with {len(cat_data.get('subcategories', []))} subcategories")
 
     db.commit()
 
@@ -120,7 +123,7 @@ def init_admin(db: Session):
     existing_admin = db.query(User).filter(User.email == admin_email).first()
 
     if existing_admin:
-        print(f"Admin user '{admin_email}' already exists, skipping...")
+        logger.info(f"Admin user '{admin_email}' already exists, skipping...")
         return
 
     # Создание админа
@@ -137,35 +140,37 @@ def init_admin(db: Session):
     db.commit()
     db.refresh(admin)
 
-    print(f"✅ Created admin user: {admin_email}")
-    print(f"   Password: {settings.FIRST_SUPERUSER_PASSWORD}")
-    print("   ⚠️  IMPORTANT: Change this password in production!")
+    logger.info(f"Created admin user: {admin_email}")
+    # SECURITY: Никогда не печатаем пароли в консоль или логи!
+    # Пароль хранится в переменной окружения FIRST_SUPERUSER_PASSWORD
+    logger.warning("Password set from FIRST_SUPERUSER_PASSWORD environment variable")
+    logger.warning("IMPORTANT: Use a strong password and change it in production!")
 
 
 def init_db():
     """Инициализация базы данных"""
-    print("🚀 Initializing database...")
+    logger.info("Initializing database...")
 
     # Создание всех таблиц
     Base.metadata.create_all(bind=engine)
-    print("✅ Database tables created")
+    logger.info("Database tables created")
 
     # Получение сессии
     db = SessionLocal()
 
     try:
         # Инициализация категорий
-        print("\n📁 Creating categories...")
+        logger.info("Creating categories...")
         init_categories(db)
 
         # Инициализация администратора
-        print("\n👤 Creating admin user...")
+        logger.info("Creating admin user...")
         init_admin(db)
 
-        print("\n✨ Database initialization completed successfully!")
+        logger.info("Database initialization completed successfully!")
 
     except Exception as e:
-        print(f"\n❌ Error during initialization: {e}")
+        logger.error(f"Error during initialization: {e}", exc_info=True)
         db.rollback()
         raise
     finally:

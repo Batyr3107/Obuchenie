@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Enum as SQLEnum, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Enum as SQLEnum, ForeignKey, Float, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -52,6 +52,12 @@ class Review(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_edited_at = Column(DateTime, nullable=True)
+
+    # PERFORMANCE: Composite indexes для оптимизации частых запросов
+    __table_args__ = (
+        Index('ix_review_course_approved', 'course_id', 'is_approved'),  # Для получения одобренных отзывов курса
+        Index('ix_review_course_created', 'course_id', 'created_at'),    # Для сортировки отзывов по дате
+    )
 
     # Relationships
     user = relationship("User", back_populates="reviews")

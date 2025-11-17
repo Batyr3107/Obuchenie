@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Enum as SQLEnum, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, Enum as SQLEnum, ForeignKey, Boolean, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -41,6 +41,11 @@ class Report(Base):
     # Временные метки
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
+
+    # PERFORMANCE: Composite index для оптимизации админ-запросов
+    __table_args__ = (
+        Index('ix_report_status_created', 'status', 'created_at'),  # Для фильтрации по статусу и сортировки по дате
+    )
 
     # Relationships
     user = relationship("User", back_populates="reports")

@@ -72,7 +72,12 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Middleware для добавления security заголовков"""
+    """
+    Middleware для добавления security заголовков
+
+    SECURITY: Усиленная Content Security Policy без unsafe-inline/unsafe-eval
+    для защиты от XSS атак
+    """
 
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -83,13 +88,22 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
-        # Content Security Policy
+        # Дополнительные security headers
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+        # Content Security Policy - УСИЛЕННАЯ БЕЗОПАСНОСТЬ
+        # Удалены 'unsafe-inline' и 'unsafe-eval' для защиты от XSS
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self'; "  # Убрано unsafe-inline и unsafe-eval
+            "style-src 'self'; "   # Убрано unsafe-inline
             "img-src 'self' data: https:; "
-            "font-src 'self' data:;"
+            "font-src 'self' data:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self';"
         )
 
         return response

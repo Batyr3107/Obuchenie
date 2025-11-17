@@ -1,7 +1,8 @@
-from pydantic import BaseModel, HttpUrl, Field
+from pydantic import BaseModel, HttpUrl, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
 from app.models.course import CourseFormat, PriceType, DifficultyLevel, CourseStatus
+from app.core.sanitizer import sanitize_text, sanitize_html, sanitize_url
 
 
 # Course Create
@@ -34,6 +35,37 @@ class CourseCreate(BaseModel):
 
     tags: Optional[List[str]] = []
 
+    @field_validator('title', 'short_description')
+    @classmethod
+    def sanitize_titles(cls, v):
+        """Санитизация заголовков и описаний"""
+        return sanitize_text(v) if v else v
+
+    @field_validator('full_description', 'requirements', 'what_you_learn')
+    @classmethod
+    def sanitize_descriptions(cls, v):
+        """Санитизация полных описаний (разрешаем базовые HTML теги)"""
+        return sanitize_html(v, strip=False) if v else v
+
+    @field_validator('official_url', 'logo_url')
+    @classmethod
+    def sanitize_urls(cls, v):
+        """Санитизация URL"""
+        if v:
+            sanitized = sanitize_url(v)
+            if not sanitized:
+                raise ValueError("Invalid URL format")
+            return sanitized
+        return v
+
+    @field_validator('tags')
+    @classmethod
+    def sanitize_tags(cls, v):
+        """Санитизация тегов"""
+        if v is None:
+            return []
+        return [sanitize_text(tag, max_length=50) for tag in v if tag]
+
 
 # Course Update
 class CourseUpdate(BaseModel):
@@ -59,6 +91,29 @@ class CourseUpdate(BaseModel):
 
     requirements: Optional[str] = None
     what_you_learn: Optional[str] = None
+
+    @field_validator('title', 'short_description')
+    @classmethod
+    def sanitize_titles(cls, v):
+        """Санитизация заголовков и описаний"""
+        return sanitize_text(v) if v else v
+
+    @field_validator('full_description', 'requirements', 'what_you_learn')
+    @classmethod
+    def sanitize_descriptions(cls, v):
+        """Санитизация полных описаний (разрешаем базовые HTML теги)"""
+        return sanitize_html(v, strip=False) if v else v
+
+    @field_validator('official_url', 'logo_url')
+    @classmethod
+    def sanitize_urls(cls, v):
+        """Санитизация URL"""
+        if v:
+            sanitized = sanitize_url(v)
+            if not sanitized:
+                raise ValueError("Invalid URL format")
+            return sanitized
+        return v
 
 
 # Course Response

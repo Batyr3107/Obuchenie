@@ -1,17 +1,23 @@
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from app.core.config import settings
-from typing import List
+from typing import List, Optional
+import logging
+import asyncio
+from smtplib import SMTPException
+
+logger = logging.getLogger(__name__)
 
 
 # Email конфигурация
+# FIXED: Используем правильные атрибуты из settings (SMTP_* вместо MAIL_*)
 conf = ConnectionConfig(
-    MAIL_USERNAME=settings.MAIL_USERNAME,
-    MAIL_PASSWORD=settings.MAIL_PASSWORD,
-    MAIL_FROM=settings.MAIL_FROM,
-    MAIL_PORT=settings.MAIL_PORT,
-    MAIL_SERVER=settings.MAIL_SERVER,
-    MAIL_STARTTLS=settings.MAIL_TLS,
-    MAIL_SSL_TLS=settings.MAIL_SSL,
+    MAIL_USERNAME=settings.SMTP_USER,
+    MAIL_PASSWORD=settings.SMTP_PASSWORD,
+    MAIL_FROM=settings.SMTP_FROM_EMAIL,
+    MAIL_PORT=settings.SMTP_PORT,
+    MAIL_SERVER=settings.SMTP_HOST,
+    MAIL_STARTTLS=settings.SMTP_TLS,
+    MAIL_SSL_TLS=settings.SMTP_SSL,
     USE_CREDENTIALS=True,
     VALIDATE_CERTS=True
 )
@@ -19,7 +25,62 @@ conf = ConnectionConfig(
 fm = FastMail(conf)
 
 
-async def send_welcome_email(email: str, name: str):
+async def send_email_with_retry(
+    message: MessageSchema,
+    max_retries: int = 3,
+    retry_delay: int = 2
+) -> bool:
+    """
+    Отправка email с повторными попытками и обработкой ошибок
+
+    Args:
+        message: Схема сообщения для отправки
+        max_retries: Максимальное количество попыток
+        retry_delay: Задержка между попытками в секундах
+
+    Returns:
+        bool: True если отправка успешна, False в противном случае
+    """
+    for attempt in range(max_retries):
+        try:
+            await fm.send_message(message)
+            logger.info(f"Email успешно отправлен на {message.recipients}")
+            return True
+
+        except SMTPException as e:
+            logger.error(f"SMTP ошибка при отправке email на {message.recipients}: {str(e)}")
+            if attempt < max_retries - 1:
+                logger.info(f"Повторная попытка {attempt + 2}/{max_retries} через {retry_delay}с...")
+                await asyncio.sleep(retry_delay)
+            else:
+                logger.error(f"Не удалось отправить email после {max_retries} попыток")
+                return False
+
+        except (ConnectionRefusedError, OSError, TimeoutError) as e:
+            logger.error(f"Ошибка подключения при отправке email: {str(e)}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+            else:
+                return False
+
+        except ValueError as e:
+            # Ошибки валидации email адреса
+            logger.error(f"Ошибка валидации при отправке email: {str(e)}")
+            return False  # Не retry при ошибках валидации
+
+        except Exception as e:
+            # JUSTIFICATION: Email service не должен ронять приложение
+            # Логируем и возвращаем False для graceful degradation
+            logger.error(f"Неожиданная ошибка при отправке email: {str(e)}", exc_info=True)
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+            else:
+                return False
+
+    return False
+
+
+async def send_welcome_email(email: str, name: str) -> bool:
     """Отправить приветственное письмо"""
     html = f"""
     <html>
@@ -45,10 +106,10 @@ async def send_welcome_email(email: str, name: str):
         subtype="html"
     )
 
-    await fm.send_message(message)
+    return await send_email_with_retry(message)
 
 
-async def send_course_approved_email(email: str, course_title: str):
+async def send_course_approved_email(email: str, course_title: str) -> bool:
     """Уведомление об одобрении курса"""
     html = f"""
     <html>
@@ -69,10 +130,10 @@ async def send_course_approved_email(email: str, course_title: str):
         subtype="html"
     )
 
-    await fm.send_message(message)
+    return await send_email_with_retry(message)
 
 
-async def send_new_review_notification(email: str, course_title: str, rating: float):
+async def send_new_review_notification(email: str, course_title: str, rating: float) -> bool:
     """Уведомление о новом отзыве на курс"""
     html = f"""
     <html>
@@ -93,10 +154,10 @@ async def send_new_review_notification(email: str, course_title: str, rating: fl
         subtype="html"
     )
 
-    await fm.send_message(message)
+    return await send_email_with_retry(message)
 
 
-async def send_verification_email(email: str, verification_code: str):
+async def send_verification_email(email: str, verification_code: str) -> bool:
     """Отправить код верификации"""
     html = f"""
     <html>
@@ -118,10 +179,10 @@ async def send_verification_email(email: str, verification_code: str):
         subtype="html"
     )
 
-    await fm.send_message(message)
+    return await send_email_with_retry(message)
 
 
-async def send_password_reset_email(email: str, reset_token: str):
+async def send_password_reset_email(email: str, reset_token: str) -> bool:
     """Отправить ссылку для сброса пароля"""
     reset_link = f"https://courserate.com/reset-password?token={reset_token}"
 
@@ -150,14 +211,14 @@ async def send_password_reset_email(email: str, reset_token: str):
         subtype="html"
     )
 
-    await fm.send_message(message)
+    return await send_email_with_retry(message)
 
 
 async def send_admin_notification(
     subject: str,
     content: str,
     recipients: List[str] = None
-):
+) -> bool:
     """Отправить уведомление админам"""
     if not recipients:
         recipients = [settings.FIRST_SUPERUSER_EMAIL]
@@ -179,4 +240,4 @@ async def send_admin_notification(
         subtype="html"
     )
 
-    await fm.send_message(message)
+    return await send_email_with_retry(message)

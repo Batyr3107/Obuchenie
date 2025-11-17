@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Enum as SQLEnum, Float, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Enum as SQLEnum, Float, ForeignKey, Table, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -97,6 +97,12 @@ class Course(Base):
     # Временные метки
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # PERFORMANCE: Composite indexes для оптимизации частых запросов
+    __table_args__ = (
+        Index('ix_course_category_status', 'category_id', 'status'),  # Для фильтрации по категории и статусу
+        Index('ix_course_status_created', 'status', 'created_at'),    # Для сортировки по дате в рамках статуса
+    )
 
     # Relationships
     category = relationship("Category", back_populates="courses")

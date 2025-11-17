@@ -6,6 +6,7 @@ from app.models.tag import Tag
 from app.models.favorite import Favorite
 from app.models.report import Report, ReportReason, ReportStatus
 from app.models.premium_placement import PremiumPlacement, PlacementTier
+from app.models.telegram_subscriber import TelegramSubscriber
 
 __all__ = [
     "User", "UserRole", "UserLevel",
@@ -15,5 +16,6 @@ __all__ = [
     "Tag",
     "Favorite",
     "Report", "ReportReason", "ReportStatus",
-    "PremiumPlacement", "PlacementTier"
+    "PremiumPlacement", "PlacementTier",
+    "TelegramSubscriber"
 ]

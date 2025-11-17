@@ -1,12 +1,16 @@
 """
 Redis кэширование
+
+SECURITY NOTE: Используется JSON сериализация вместо pickle для
+предотвращения уязвимостей arbitrary code execution при десериализации.
 """
 import json
-import pickle
 from typing import Optional, Any, Callable
 from functools import wraps
 import hashlib
 import logging
+from datetime import datetime, date
+from decimal import Decimal
 
 try:
     import redis
@@ -56,15 +60,37 @@ class CacheManager:
         key_hash = hashlib.md5(key_data.encode()).hexdigest()
         return f"cache:{prefix}:{key_hash}"
 
+    def _json_serializer(self, obj: Any) -> Any:
+        """
+        Кастомный JSON сериализатор для сложных объектов
+
+        Поддерживает datetime, date, Decimal, set
+        """
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        if isinstance(obj, Decimal):
+            return float(obj)
+        if isinstance(obj, set):
+            return list(obj)
+        if isinstance(obj, bytes):
+            return obj.decode('utf-8')
+        raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
     def get(self, key: str) -> Optional[Any]:
-        """Получение значения из кэша"""
+        """
+        Получение значения из кэша
+
+        SECURITY: Использует JSON десериализацию вместо pickle
+        для предотвращения arbitrary code execution
+        """
         if not self.enabled or not self.redis_client:
             return None
 
         try:
             value = self.redis_client.get(key)
             if value:
-                return pickle.loads(value)
+                # Безопасная десериализация через JSON
+                return json.loads(value.decode('utf-8'))
             return None
         except Exception as e:
             logger.error(f"Cache get error for key {key}: {e}")
@@ -86,12 +112,16 @@ class CacheManager:
 
         Returns:
             bool: Успешность операции
+
+        SECURITY: Использует JSON сериализацию вместо pickle
+        для предотвращения arbitrary code execution
         """
         if not self.enabled or not self.redis_client:
             return False
 
         try:
-            serialized = pickle.dumps(value)
+            # Безопасная сериализация через JSON
+            serialized = json.dumps(value, default=self._json_serializer)
             self.redis_client.setex(key, expire, serialized)
             return True
         except Exception as e:

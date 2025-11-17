@@ -30,11 +30,28 @@ def get_remote_address_or_user(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-# Создание limiter
+# Создание limiter с динамическим storage
+def get_storage_uri() -> str:
+    """
+    Получить storage URI для rate limiting
+
+    PRODUCTION: Использует Redis для распределенного rate limiting
+    DEVELOPMENT: Использует memory:// для простоты
+    """
+    from app.core.config import settings
+
+    # В production используем Redis
+    if settings.is_production() and settings.ENABLE_CACHE:
+        return settings.get_redis_url()
+
+    # В development используем память (по умолчанию)
+    return settings.RATE_LIMIT_STORAGE
+
+
 limiter = Limiter(
     key_func=get_remote_address_or_user,
     default_limits=["200/minute", "10000/day"],  # Глобальные лимиты
-    storage_uri="memory://",  # В production использовать Redis
+    storage_uri=get_storage_uri(),
 )
 
 

@@ -4,6 +4,7 @@ Telegram бот для платформы CourseRate
 """
 import os
 import asyncio
+import logging
 import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -18,6 +19,9 @@ from telegram.ext import (
 # Настройки
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 API_URL = os.getenv("API_URL", "http://localhost:8000/api/v1")
+
+# Logger
+logger = logging.getLogger(__name__)
 
 
 # ============ КОМАНДЫ ============
@@ -194,27 +198,63 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Подписаться на уведомления"""
-    user_id = update.effective_user.id
-    # TODO: Сохранить user_id в БД для рассылки
+    user = update.effective_user
 
-    await update.message.reply_text(
-        "✅ Вы подписались на уведомления!\n\nВы будете получать:\n• Новые топ курсы\n• Обновления рейтингов\n• Специальные предложения"
-    )
+    try:
+        # Отправляем запрос на API для сохранения подписчика
+        subscriber_data = {
+            "telegram_user_id": user.id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "notify_new_courses": True,
+            "notify_top_courses": True,
+            "notify_special_offers": False
+        }
+
+        response = requests.post(f"{API_URL}/telegram/subscribe", json=subscriber_data)
+
+        if response.status_code == 201:
+            await update.message.reply_text(
+                "✅ Вы подписались на уведомления!\n\nВы будете получать:\n• Новые топ курсы\n• Обновления рейтингов\n• Специальные предложения"
+            )
+        elif response.status_code == 400 and "уже активна" in response.text:
+            await update.message.reply_text(
+                "ℹ️ Вы уже подписаны на уведомления!"
+            )
+        else:
+            await update.message.reply_text(
+                "⚠️ Не удалось подписаться. Попробуйте позже."
+            )
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Ошибка подписки: {str(e)}\n\nПопробуйте позже."
+        )
 
 
 async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Отписаться от уведомлений"""
     user_id = update.effective_user.id
-    # TODO: Удалить user_id из БД
 
-    await update.message.reply_text("❌ Вы отписались от уведомлений.")
+    try:
+        # Отправляем запрос на API для отписки
+        response = requests.post(f"{API_URL}/telegram/unsubscribe/{user_id}")
+
+        if response.status_code == 200:
+            await update.message.reply_text("❌ Вы отписались от уведомлений.")
+        elif response.status_code == 404:
+            await update.message.reply_text("ℹ️ Вы не были подписаны на уведомления.")
+        else:
+            await update.message.reply_text("⚠️ Не удалось отписаться. Попробуйте позже.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка отписки: {str(e)}\n\nПопробуйте позже.")
 
 
 # ============ MAIN ============
 
 def main():
     """Запуск бота"""
-    print("🤖 Запуск Telegram бота CourseRate...")
+    logger.info("Starting Telegram bot CourseRate...")
 
     # Создание приложения
     application = Application.builder().token(BOT_TOKEN).build()
@@ -235,7 +275,7 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_callback))
 
     # Запуск
-    print("✅ Бот запущен!")
+    logger.info("Telegram bot started successfully!")
     application.run_polling()
 
 

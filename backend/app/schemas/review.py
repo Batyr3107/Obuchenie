@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
 from app.models.review import CompletionStatus
+from app.core.sanitizer import sanitize_text, sanitize_html
 
 
 # Review Create
@@ -25,6 +26,20 @@ class ReviewCreate(BaseModel):
     completion_status: CompletionStatus
     completion_date: Optional[str] = None  # YYYY-MM
 
+    @field_validator('review_text')
+    @classmethod
+    def sanitize_review_text(cls, v):
+        """Санитизация текста отзыва"""
+        return sanitize_html(v, strip=True)
+
+    @field_validator('pros', 'cons')
+    @classmethod
+    def sanitize_list_items(cls, v):
+        """Санитизация элементов списков"""
+        if v is None:
+            return []
+        return [sanitize_text(item, max_length=200) for item in v if item]
+
 
 # Review Update
 class ReviewUpdate(BaseModel):
@@ -41,6 +56,22 @@ class ReviewUpdate(BaseModel):
     recommend: Optional[bool] = None
     completion_status: Optional[CompletionStatus] = None
     completion_date: Optional[str] = None
+
+    @field_validator('review_text')
+    @classmethod
+    def sanitize_review_text(cls, v):
+        """Санитизация текста отзыва"""
+        if v is not None:
+            return sanitize_html(v, strip=True)
+        return v
+
+    @field_validator('pros', 'cons')
+    @classmethod
+    def sanitize_list_items(cls, v):
+        """Санитизация элементов списков"""
+        if v is None:
+            return None
+        return [sanitize_text(item, max_length=200) for item in v if item]
 
 
 # Review Response
