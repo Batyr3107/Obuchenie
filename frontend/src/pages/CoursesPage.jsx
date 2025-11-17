@@ -5,6 +5,7 @@ import CourseCard from '../components/courses/CourseCard'
 import CourseFilters from '../components/courses/CourseFilters'
 import SkeletonLoader from '../components/common/SkeletonLoader'
 import { coursesAPI } from '../services/api'
+import { reportError } from '../utils/errorReporter'
 import toast from 'react-hot-toast'
 
 function CoursesPage() {
@@ -34,7 +35,7 @@ function CoursesPage() {
       setCourses(response.data)
     } catch (error) {
       toast.error('Ошибка при загрузке курсов')
-      console.error('Error fetching courses:', error)
+      reportError(error, { component: 'CoursesPage', action: 'fetchCourses', filters })
     } finally {
       setLoading(false)
     }

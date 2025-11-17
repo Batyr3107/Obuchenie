@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Search, TrendingUp, Award, Users, Sparkles, Zap, Target, ArrowRight } from 'lucide-react'
 import CourseCard from '../components/courses/CourseCard'
 import { coursesAPI } from '../services/api'
+import { reportError } from '../utils/errorReporter'
 import toast from 'react-hot-toast'
 
 function HomePage() {
@@ -18,7 +19,7 @@ function HomePage() {
       const response = await coursesAPI.getAll({ limit: 6, min_rating: 4.0 })
       setTopCourses(response.data)
     } catch (error) {
-      console.error('Error fetching courses:', error)
+      reportError(error, { component: 'HomePage', action: 'fetchTopCourses' })
     }
   }
 

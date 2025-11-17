@@ -10,6 +10,7 @@ import RatingStars from '../components/reviews/RatingStars'
 import SkeletonLoader from '../components/common/SkeletonLoader'
 import { coursesAPI, reviewsAPI } from '../services/api'
 import { useAuthStore } from '../utils/store'
+import { reportError } from '../utils/errorReporter'
 import toast from 'react-hot-toast'
 
 function CourseDetailPage() {
@@ -30,7 +31,7 @@ function CourseDetailPage() {
       setCourse(response.data)
     } catch (error) {
       toast.error('Ошибка при загрузке курса')
-      console.error('Error fetching course:', error)
+      reportError(error, { component: 'CourseDetailPage', action: 'fetchCourse', courseId: id })
     } finally {
       setLoading(false)
     }
@@ -41,7 +42,7 @@ function CourseDetailPage() {
       const response = await reviewsAPI.getAll({ course_id: id })
       setReviews(response.data)
     } catch (error) {
-      console.error('Error fetching reviews:', error)
+      reportError(error, { component: 'CourseDetailPage', action: 'fetchReviews', courseId: id })
     }
   }
 

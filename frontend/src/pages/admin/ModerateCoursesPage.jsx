@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Check, X, ExternalLink } from 'lucide-react'
 import { useAuthStore } from '../../utils/store'
+import ConfirmModal from '../../components/common/ConfirmModal'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 
@@ -10,6 +11,7 @@ function ModerateCoursesPage() {
   const { user } = useAuthStore()
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, courseId: null })
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -40,8 +42,12 @@ function ModerateCoursesPage() {
     }
   }
 
-  const handleReject = async (courseId) => {
-    if (!confirm('Отклонить этот курс?')) return
+  const handleReject = (courseId) => {
+    setConfirmModal({ isOpen: true, courseId })
+  }
+
+  const confirmReject = async () => {
+    const { courseId } = confirmModal
 
     try {
       await api.post(`/admin/courses/${courseId}/reject`)
@@ -127,6 +133,18 @@ function ModerateCoursesPage() {
           ))}
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, courseId: null })}
+        onConfirm={confirmReject}
+        title="Отклонить курс?"
+        message="Вы уверены, что хотите отклонить этот курс? Это действие нельзя отменить."
+        confirmText="Да, отклонить"
+        cancelText="Отмена"
+        variant="danger"
+      />
     </div>
   )
 }

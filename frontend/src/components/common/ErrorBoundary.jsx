@@ -1,5 +1,6 @@
 import { Component } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { reportError } from '../../utils/errorReporter'
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -16,16 +17,17 @@ class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log error to console in development
-    console.error('Error caught by boundary:', error, errorInfo)
+    // Report error to error reporting service
+    reportError(error, {
+      component: 'ErrorBoundary',
+      errorInfo: errorInfo?.componentStack,
+      boundary: this.props.name || 'root'
+    })
 
     this.setState({
       error,
       errorInfo
     })
-
-    // TODO: Send error to logging service in production
-    // logErrorToService(error, errorInfo)
   }
 
   handleReset = () => {

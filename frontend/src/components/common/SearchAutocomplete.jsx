@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import api from '../../services/api'
+import { reportError } from '../../utils/errorReporter'
 
 function SearchAutocomplete() {
   const navigate = useNavigate()
@@ -42,7 +43,7 @@ function SearchAutocomplete() {
       setSuggestions(response.data)
       setShowSuggestions(true)
     } catch (error) {
-      console.error('Autocomplete error:', error)
+      reportError(error, { component: 'SearchAutocomplete', action: 'fetchSuggestions', query })
     } finally {
       setLoading(false)
     }

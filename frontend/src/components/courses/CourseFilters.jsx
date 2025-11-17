@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Search } from 'lucide-react'
 import { categoriesAPI } from '../../services/api'
+import { reportError } from '../../utils/errorReporter'
 
 function CourseFilters({ filters, onFiltersChange }) {
   const [categories, setCategories] = useState([])
@@ -14,7 +15,7 @@ function CourseFilters({ filters, onFiltersChange }) {
       const response = await categoriesAPI.getAll()
       setCategories(response.data)
     } catch (error) {
-      console.error('Error fetching categories:', error)
+      reportError(error, { component: 'CourseFilters', action: 'fetchCategories' })
     }
   }
 
