@@ -1,0 +1,73 @@
+# ============================================
+# Production Dockerfile для Backend
+# Multi-stage build для уменьшения размера образа
+# ============================================
+
+# Stage 1: Builder
+FROM python:3.11-slim as builder
+
+WORKDIR /app
+
+# Установка build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    postgresql-client \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копирование только requirements для кэширования слоя
+COPY requirements.txt .
+
+# Установка зависимостей в отдельную директорию
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Установка gunicorn для production
+RUN pip install --no-cache-dir --user gunicorn
+
+
+# Stage 2: Runtime
+FROM python:3.11-slim
+
+# Создание непривилегированного пользователя
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app/logs /app/uploads && \
+    chown -R appuser:appuser /app
+
+WORKDIR /app
+
+# Установка только runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копирование установленных пакетов из builder
+COPY --from=builder /root/.local /home/appuser/.local
+
+# Копирование приложения
+COPY --chown=appuser:appuser . .
+
+# Установка PATH для установленных пакетов
+ENV PATH=/home/appuser/.local/bin:$PATH
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Переключение на непривилегированного пользователя
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose порт
+EXPOSE 8000
+
+# Запуск с gunicorn
+CMD ["gunicorn", "app.main:app", \
+     "--workers", "4", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--bind", "0.0.0.0:8000", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "--log-level", "info"]

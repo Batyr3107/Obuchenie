@@ -1,0 +1,50 @@
+# ============================================
+# Production Dockerfile для Frontend
+# Multi-stage build: build React -> serve with Nginx
+# ============================================
+
+# Stage 1: Build
+FROM node:18-alpine as build
+
+WORKDIR /app
+
+# Копирование package files
+COPY package.json package-lock.json* ./
+
+# Установка зависимостей
+RUN npm ci --only=production && \
+    npm cache clean --force
+
+# Копирование исходного кода
+COPY . .
+
+# Build для production
+RUN npm run build
+
+
+# Stage 2: Production с Nginx
+FROM nginx:alpine
+
+# Копирование custom nginx конфига
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Копирование собранного приложения
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# Создание непривилегированного пользователя
+RUN addgroup -g 101 -S nginx && \
+    adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx && \
+    chown -R nginx:nginx /usr/share/nginx/html && \
+    chown -R nginx:nginx /var/cache/nginx && \
+    chown -R nginx:nginx /var/log/nginx && \
+    chmod -R 755 /usr/share/nginx/html
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+
+# Expose порты
+EXPOSE 80 443
+
+# Запуск nginx
+CMD ["nginx", "-g", "daemon off;"]
