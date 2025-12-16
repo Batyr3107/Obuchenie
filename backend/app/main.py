@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -31,6 +32,31 @@ logger = logging.getLogger(__name__)
 # Создание таблиц БД
 Base.metadata.create_all(bind=engine)
 
+
+# ============= Lifespan Context Manager (Best Practice) =============
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Modern lifespan context manager (replaces deprecated on_event).
+
+    Best Practice: Use lifespan for startup/shutdown events as per FastAPI docs.
+    This approach is more explicit and supports async cleanup properly.
+    """
+    # Startup
+    logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION}")
+    logger.info(f"Environment: {settings.ENVIRONMENT if hasattr(settings, 'ENVIRONMENT') else 'development'}")
+    logger.info(f"API docs available at: /docs")
+    logger.info(f"Health check available at: /health")
+
+    yield  # Application runs here
+
+    # Shutdown
+    logger.info(f"Shutting down {settings.PROJECT_NAME}")
+    engine.dispose()
+    logger.info("Database connections closed gracefully")
+
+
 # Создание приложения
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -40,6 +66,7 @@ app = FastAPI(
     openapi_tags=tags_metadata,
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,  # Best Practice: Use lifespan instead of on_event
     contact={
         "name": "CourseRate API Support",
         "email": "support@courserate.com",
@@ -49,25 +76,6 @@ app = FastAPI(
         "url": "https://opensource.org/licenses/MIT",
     },
 )
-
-
-# ============= Startup & Shutdown Events =============
-
-@app.on_event("startup")
-async def startup_event():
-    """Действия при запуске приложения"""
-    logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION}")
-    logger.info(f"Environment: {settings.ENVIRONMENT if hasattr(settings, 'ENVIRONMENT') else 'development'}")
-    logger.info(f"API docs available at: /docs")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Действия при остановке приложения"""
-    logger.info(f"Shutting down {settings.PROJECT_NAME}")
-    # Закрытие соединений с БД
-    engine.dispose()
-    logger.info("Database connections closed")
 
 
 # ============= Exception Handlers =============

@@ -1,18 +1,27 @@
 """
 Mixins для моделей SQLAlchemy
+
+Best Practice: Use timezone-aware datetimes for proper timestamp handling
 """
-from datetime import datetime
-from sqlalchemy import Column, DateTime, Boolean
+from datetime import datetime, timezone
+from sqlalchemy import Column, DateTime, Boolean, Integer
 from sqlalchemy.orm import Query
 from typing import Optional
+
+
+def utc_now() -> datetime:
+    """Helper function for timezone-aware UTC timestamps."""
+    return datetime.now(timezone.utc)
 
 
 class TimestampMixin:
     """
     Mixin для добавления timestamps (created_at, updated_at)
+
+    Best Practice: Use timezone-aware UTC timestamps
     """
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
 class SoftDeleteMixin:
@@ -47,7 +56,7 @@ class SoftDeleteMixin:
 
     def soft_delete(self) -> None:
         """Мягкое удаление записи"""
-        self.deleted_at = datetime.utcnow()
+        self.deleted_at = datetime.now(timezone.utc)
         self.is_deleted = True
 
     def restore(self) -> None:

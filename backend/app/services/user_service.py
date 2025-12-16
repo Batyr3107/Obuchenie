@@ -5,7 +5,7 @@ ARCHITECTURE: Бизнес-логика для работы с пользова�
 TESTABILITY: Легко тестируется без HTTP слоя
 """
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -116,7 +116,7 @@ class UserService:
             db: Database session
             user: Пользователь для обновления
         """
-        user.last_login = datetime.utcnow()
+        user.last_login = datetime.now(timezone.utc)
         db.commit()
 
     @staticmethod

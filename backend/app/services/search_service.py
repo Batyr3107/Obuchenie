@@ -141,9 +141,9 @@ class SearchService:
         Returns:
             Список трендовых курсов
         """
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
-        since_date = datetime.utcnow() - timedelta(days=days)
+        since_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         # OPTIMIZATION: Можно добавить поле last_review_date в модель Course
         # для более эффективного запроса

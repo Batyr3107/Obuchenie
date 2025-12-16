@@ -7,7 +7,7 @@ DRY: Централизация логики модерации и управл�
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.course import Course, CourseStatus
 from app.models.user import User, UserRole
@@ -265,7 +265,7 @@ class AdminService:
         # Обновить статус всех жалоб на этот отзыв
         db.query(Report).filter(Report.review_id == review_id).update({
             "status": ReportStatus.RESOLVED,
-            "resolved_at": datetime.utcnow()
+            "resolved_at": datetime.now(timezone.utc)
         })
 
         db.commit()
@@ -289,7 +289,7 @@ class AdminService:
         """
         report = get_or_404(db, Report, report_id, "Report not found")
         report.status = ReportStatus.REJECTED
-        report.resolved_at = datetime.utcnow()
+        report.resolved_at = datetime.now(timezone.utc)
         db.commit()
 
         return {"message": "Report rejected"}
