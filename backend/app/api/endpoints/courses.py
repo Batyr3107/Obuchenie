@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 
 from app.db.base import get_db
@@ -141,8 +141,10 @@ async def get_course_reviews(
     # Verify course exists
     await CourseService.get_course_by_id(db, course_id)
 
-    # Build query
-    query = db.query(Review).filter(
+    # PERFORMANCE: Build query with joinedload to prevent N+1
+    query = db.query(Review).options(
+        joinedload(Review.user)
+    ).filter(
         Review.course_id == course_id,
         Review.is_approved == True
     )

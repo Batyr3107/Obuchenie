@@ -48,18 +48,7 @@ class ReportService:
                 detail="Cannot report your own review"
             )
 
-        # Проверка дубликата жалобы
-        existing = db.query(Report).filter(
-            Report.review_id == report_data.review_id,
-            Report.user_id == user_id
-        ).first()
-
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="You have already reported this review"
-            )
-
+        # CONCURRENCY: No TOCTOU - rely on IntegrityError from UNIQUE constraint
         # Создание жалобы
         new_report = Report(
             review_id=report_data.review_id,

@@ -21,6 +21,15 @@ async def compare_courses(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid course IDs format")
 
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_ids = []
+    for id in ids:
+        if id not in seen:
+            seen.add(id)
+            unique_ids.append(id)
+    ids = unique_ids
+
     if len(ids) < 2:
         raise HTTPException(status_code=400, detail="At least 2 courses required for comparison")
 
