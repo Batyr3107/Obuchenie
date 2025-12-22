@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.api.dependencies.auth import get_current_active_user, get_current_admin_user
 from app.api.dependencies.database import get_db
@@ -37,7 +37,7 @@ async def subscribe_telegram(
         # Если подписчик уже существует, но был отписан - активируем снова
         if not existing.is_active:
             existing.is_active = True
-            existing.subscribed_at = datetime.utcnow()
+            existing.subscribed_at = datetime.now(timezone.utc)
             existing.unsubscribed_at = None
             existing.notify_new_courses = subscriber_data.notify_new_courses
             existing.notify_top_courses = subscriber_data.notify_top_courses
@@ -94,7 +94,7 @@ async def unsubscribe_telegram(
         )
 
     subscriber.is_active = False
-    subscriber.unsubscribed_at = datetime.utcnow()
+    subscriber.unsubscribed_at = datetime.now(timezone.utc)
     db.commit()
 
     return {"message": "Подписка отменена"}

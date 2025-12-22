@@ -7,7 +7,7 @@ ARCHITECTURE: Вынесена вся бизнес-логика из endpoints
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 import json
 
@@ -78,7 +78,7 @@ class ReviewService:
         Raises:
             HTTPException: Если лимит превышен
         """
-        today = datetime.utcnow().date()
+        today = datetime.now(timezone.utc).date()
         reviews_today = db.query(Review).filter(
             Review.user_id == user_id,
             func.date(Review.created_at) == today
@@ -275,7 +275,7 @@ class ReviewService:
                 review.practical
             ) / 5, 2)
 
-        review.last_edited_at = datetime.utcnow()
+        review.last_edited_at = datetime.now(timezone.utc)
 
         try:
             db.commit()
