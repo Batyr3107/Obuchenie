@@ -18,8 +18,7 @@ from app.core.security import (
     verify_password,
     is_account_locked,
     record_failed_login,
-    clear_failed_login_attempts,
-    get_failed_login_attempts
+    clear_failed_login_attempts
 )
 from app.core.validators import validate_email, sanitize_text
 from app.core.config import settings
