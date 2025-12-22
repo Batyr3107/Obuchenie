@@ -145,6 +145,8 @@ async def health_check():
     """
     Health check endpoint
     Проверяет состояние приложения и подключения к БД
+
+    SECURITY: Uses context manager to prevent connection leaks on exceptions.
     """
     health_status = {
         "status": "healthy",
@@ -152,17 +154,20 @@ async def health_check():
         "database": "unknown"
     }
 
-    # Проверка подключения к БД
+    # Проверка подключения к БД (with context manager to prevent leaks)
+    db = None
     try:
         db = SessionLocal()
         db.execute(text("SELECT 1"))
-        db.close()
         health_status["database"] = "connected"
     except Exception as e:
         logger.error(f"Database health check failed: {str(e)}")
         health_status["status"] = "unhealthy"
         health_status["database"] = "disconnected"
         health_status["error"] = "Database connection failed"
+    finally:
+        if db is not None:
+            db.close()
 
     return health_status
 
@@ -172,15 +177,20 @@ async def readiness_check():
     """
     Readiness check для Kubernetes/Docker
     Проверяет готовность приложения принимать запросы
+
+    SECURITY: Uses try/finally to prevent connection leaks.
     """
+    db = None
     try:
         db = SessionLocal()
         db.execute(text("SELECT 1"))
-        db.close()
         return {"ready": True}
     except Exception as e:
         logger.error(f"Readiness check failed: {str(e)}")
         return {"ready": False, "error": str(e)}
+    finally:
+        if db is not None:
+            db.close()
 
 
 @app.get("/health/live", tags=["Health"])

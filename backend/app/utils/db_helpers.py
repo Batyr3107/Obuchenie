@@ -149,7 +149,10 @@ def increment_counter(
     value: int = 1
 ) -> None:
     """
-    Увеличить счетчик у объекта
+    Увеличить счетчик у объекта (НЕ атомарно!)
+
+    WARNING: This function has a race condition! Use atomic_increment for
+    counters that may be updated concurrently (views, likes, etc.)
 
     Args:
         db: Database session
@@ -163,6 +166,37 @@ def increment_counter(
     """
     current_value = getattr(obj, field_name, 0)
     setattr(obj, field_name, current_value + value)
+
+
+def atomic_increment(
+    db: Session,
+    model: Type[T],
+    obj_id: int,
+    field_name: str,
+    value: int = 1
+) -> None:
+    """
+    Атомарно увеличить счетчик в БД.
+
+    CONCURRENCY: Использует SQL SET field = field + 1, что предотвращает
+    race conditions при одновременных обновлениях.
+
+    Args:
+        db: Database session
+        model: SQLAlchemy модель
+        obj_id: ID объекта
+        field_name: Имя поля-счетчика
+        value: Значение для увеличения (по умолчанию 1)
+
+    Example:
+        >>> atomic_increment(db, Course, course.id, "views_count")
+        >>> atomic_increment(db, Review, review.id, "helpful_votes", 1)
+    """
+    field = getattr(model, field_name)
+    db.query(model).filter(model.id == obj_id).update(
+        {field_name: field + value},
+        synchronize_session=False
+    )
 
 
 def decrement_counter(

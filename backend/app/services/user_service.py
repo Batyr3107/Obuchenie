@@ -3,17 +3,18 @@ User Service
 
 ARCHITECTURE: Бизнес-логика для работы с пользователями
 TESTABILITY: Легко тестируется без HTTP слоя
+SECURITY: Handles race conditions in user registration
 """
 from typing import Optional
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status
 
 from app.models.user import User
 from app.schemas.user import UserCreate
 from app.core.security import get_password_hash, verify_password
 from app.core.validators import validate_email, sanitize_text
-from app.utils.db_helpers import exists_or_400
 
 
 class UserService:
@@ -26,6 +27,8 @@ class UserService:
 
         CLEAN CODE: Вся логика регистрации в одном месте
         TESTABILITY: Можно тестировать без HTTP
+        SECURITY: Uses try/except IntegrityError to prevent TOCTOU race condition.
+                  The database UNIQUE constraint is the source of truth.
 
         Args:
             db: Database session
@@ -41,15 +44,6 @@ class UserService:
         validated_email = validate_email(user_data.email)
         sanitized_full_name = sanitize_text(user_data.full_name, max_length=200)
 
-        # Проверка существования email
-        exists_or_400(
-            db,
-            User,
-            "email",
-            validated_email,
-            "Email already registered"
-        )
-
         # Создание пользователя
         new_user = User(
             email=validated_email,
@@ -57,9 +51,21 @@ class UserService:
             full_name=sanitized_full_name
         )
 
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
+        # SECURITY: Rely on DB unique constraint, not check-then-insert (TOCTOU)
+        try:
+            db.add(new_user)
+            db.commit()
+            db.refresh(new_user)
+        except IntegrityError as e:
+            db.rollback()
+            # Check if it's a duplicate email error
+            if "email" in str(e.orig).lower() or "unique" in str(e.orig).lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already registered"
+                )
+            # Re-raise for other integrity errors
+            raise
 
         return new_user
 

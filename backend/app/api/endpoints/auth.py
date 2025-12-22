@@ -1,14 +1,18 @@
 from fastapi import APIRouter, Depends, status, Request
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, Token
-from app.core.security import create_access_token
+from app.core.security import create_access_token, blacklist_token
+from app.core.config import settings
 from app.api.dependencies.auth import get_current_user
 from app.core.rate_limit import limiter
 from app.services.user_service import UserService
+
+# For logout endpoint to get raw token
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
 router = APIRouter()
 
@@ -61,3 +65,21 @@ async def get_current_user_info(
 ):
     """Получение информации о текущем пользователе"""
     return current_user
+
+
+@router.post("/logout", status_code=status.HTTP_200_OK)
+async def logout(
+    token: str = Depends(oauth2_scheme),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Выход пользователя.
+
+    SECURITY: Добавляет токен в blacklist, делая его недействительным
+    даже до истечения срока действия.
+
+    Returns:
+        Сообщение об успешном выходе
+    """
+    blacklist_token(token)
+    return {"message": "Successfully logged out"}

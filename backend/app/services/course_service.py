@@ -4,6 +4,7 @@ Course Service
 ARCHITECTURE: Бизнес-логика для работы с курсами
 TESTABILITY: Легко тестируется без HTTP слоя
 PERFORMANCE: Кэширование списков курсов
+SECURITY: Safe LIKE patterns with proper escaping
 """
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
@@ -11,8 +12,29 @@ from slugify import slugify
 
 from app.models.course import Course, CourseStatus
 from app.schemas.course import CourseCreate, CourseUpdate
-from app.utils.db_helpers import get_or_404, increment_counter
+from app.utils.db_helpers import get_or_404, atomic_increment
 from app.core.cache import cache_manager
+
+
+def escape_like_pattern(search: str) -> str:
+    """
+    Escape special LIKE pattern characters to prevent wildcard injection.
+
+    SECURITY: Prevents attacks where users manipulate search with % or _ chars.
+    Example: searching "%" would match everything without this escape.
+
+    Args:
+        search: Raw search string from user input
+
+    Returns:
+        Escaped string safe for use in LIKE/ILIKE queries
+    """
+    return (
+        search
+        .replace("\\", "\\\\")  # Escape backslash first
+        .replace("%", "\\%")    # Escape percent
+        .replace("_", "\\_")    # Escape underscore
+    )
 
 
 class CourseService:
@@ -69,9 +91,10 @@ class CourseService:
         if category_id:
             query = query.filter(Course.category_id == category_id)
 
-        # Поиск по названию
+        # Поиск по названию (SECURITY: escape LIKE wildcards)
         if search:
-            query = query.filter(Course.title.ilike(f"%{search}%"))
+            safe_search = escape_like_pattern(search)
+            query = query.filter(Course.title.ilike(f"%{safe_search}%", escape="\\"))
 
         # Фильтрация по рейтингу
         if min_rating:
@@ -126,11 +149,14 @@ class CourseService:
         """
         Увеличение счетчика просмотров
 
+        CONCURRENCY: Uses atomic SQL increment to prevent race conditions.
+        Without this, concurrent requests could cause lost updates.
+
         Args:
             db: Database session
             course: Курс для обновления
         """
-        increment_counter(db, course, "views_count")
+        atomic_increment(db, Course, course.id, "views_count")
         db.commit()
 
     @staticmethod
