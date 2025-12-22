@@ -4,7 +4,7 @@ Database Helper Functions
 DRY: Переиспользуемые функции для работы с БД
 Устраняет дублирование проверок существования объектов в 10+ местах
 """
-from typing import Type, TypeVar, Optional
+from typing import Type, TypeVar, Optional, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi import HTTPException, status
@@ -53,7 +53,7 @@ def get_by_field_or_404(
     db: Session,
     model: Type[T],
     field_name: str,
-    field_value: any,
+    field_value: Any,
     error_msg: Optional[str] = None
 ) -> T:
     """
@@ -88,7 +88,7 @@ def exists_or_400(
     db: Session,
     model: Type[T],
     field_name: str,
-    field_value: any,
+    field_value: Any,
     error_msg: Optional[str] = None
 ) -> None:
     """
