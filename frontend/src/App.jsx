@@ -1,7 +1,7 @@
 import { useEffect, Suspense, lazy } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import { useThemeStore } from './utils/store'
+import { useThemeStore, useAuthStore } from './utils/store'
 
 // Layout - loaded immediately as it's always needed
 import Layout from './components/common/Layout'
@@ -70,6 +70,13 @@ const NotFoundPage = () => (
 
 function App() {
   const { theme } = useThemeStore()
+  const { initAuthListener } = useAuthStore()
+
+  // Initialize auth event listener for handling 401 responses
+  useEffect(() => {
+    const cleanup = initAuthListener()
+    return cleanup
+  }, [initAuthListener])
 
   // Initialize theme on mount
   useEffect(() => {
