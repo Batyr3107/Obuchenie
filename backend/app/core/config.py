@@ -104,9 +104,9 @@ class Settings(BaseSettings):
 
     @field_validator("BACKEND_CORS_ORIGINS")
     @classmethod
-    def validate_cors_origins(cls, v: List[str], values) -> List[str]:
+    def validate_cors_origins(cls, v: List[str], info) -> List[str]:
         # В production не разрешаем "*"
-        if values.data.get("ENVIRONMENT") == "production" and "*" in v:
+        if info.data.get("ENVIRONMENT") == "production" and "*" in v:
             raise ValueError("Wildcard CORS origin not allowed in production")
         return v
 
