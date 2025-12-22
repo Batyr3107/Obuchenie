@@ -1,6 +1,11 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
-from datetime import datetime
+from datetime import datetime, timezone
 from app.db.base import Base
+
+
+def utc_now() -> datetime:
+    """Get current UTC time (timezone-aware)"""
+    return datetime.now(timezone.utc)
 
 
 class TelegramSubscriber(Base):
@@ -20,6 +25,6 @@ class TelegramSubscriber(Base):
     notify_special_offers = Column(Boolean, default=False)
 
     # Временные метки
-    subscribed_at = Column(DateTime, default=datetime.utcnow)
-    last_notified_at = Column(DateTime, nullable=True)
-    unsubscribed_at = Column(DateTime, nullable=True)
+    subscribed_at = Column(DateTime(timezone=True), default=utc_now)
+    last_notified_at = Column(DateTime(timezone=True), nullable=True)
+    unsubscribed_at = Column(DateTime(timezone=True), nullable=True)

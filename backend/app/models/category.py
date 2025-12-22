@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text
+from sqlalchemy import Column, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
@@ -23,7 +23,7 @@ class Subcategory(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     slug = Column(String(100), nullable=False, index=True)
-    category_id = Column(Integer, nullable=False)
+    category_id = Column(Integer, ForeignKey('categories.id', ondelete='CASCADE'), nullable=False, index=True)
 
     # Relationships
     category = relationship("Category", back_populates="subcategories")

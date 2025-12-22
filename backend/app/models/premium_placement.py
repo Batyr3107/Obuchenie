@@ -1,8 +1,13 @@
 from sqlalchemy import Column, Integer, DateTime, Enum as SQLEnum, ForeignKey, Boolean, Float
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import enum
 from app.db.base import Base
+
+
+def utc_now() -> datetime:
+    """Get current UTC time (timezone-aware)"""
+    return datetime.now(timezone.utc)
 
 
 class PlacementTier(str, enum.Enum):
@@ -31,8 +36,8 @@ class PremiumPlacement(Base):
     views_count = Column(Integer, default=0)
     clicks_count = Column(Integer, default=0)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
     # Relationships
     course = relationship("Course", back_populates="premium_placement")
