@@ -5,10 +5,13 @@ ARCHITECTURE: Бизнес-логика для работы с курсами
 TESTABILITY: Легко тестируется без HTTP слоя
 PERFORMANCE: Кэширование списков курсов
 SECURITY: Safe LIKE patterns with proper escaping
+CONCURRENCY: Handles slug collisions with retry logic
 """
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import IntegrityError
 from slugify import slugify
+import uuid
 
 from app.models.course import Course, CourseStatus
 from app.schemas.course import CourseCreate, CourseUpdate
@@ -116,7 +119,8 @@ class CourseService:
         """
         Получение курса по ID
 
-        PERFORMANCE: Использует joinedload для загрузки связанных данных
+        PERFORMANCE: Loads category, subcategory, and tags.
+        Reviews are NOT loaded here - use /reviews?course_id=X for paginated reviews.
 
         Args:
             db: Database session
@@ -128,11 +132,12 @@ class CourseService:
         Raises:
             HTTPException: 404 если курс не найден
         """
+        # NOTE: Reviews removed from joinedload to prevent loading 10000+ reviews
+        # Use GET /reviews?course_id=X with pagination instead
         course = db.query(Course).options(
             joinedload(Course.category),
             joinedload(Course.subcategory),
-            joinedload(Course.tags),
-            joinedload(Course.reviews)
+            joinedload(Course.tags)
         ).filter(Course.id == course_id).first()
 
         if not course:
@@ -165,6 +170,7 @@ class CourseService:
         Создание нового курса
 
         BUSINESS LOGIC: Генерирует slug, проверяет уникальность
+        CONCURRENCY: Uses retry with unique suffix to handle slug collisions
 
         Args:
             db: Database session
@@ -173,43 +179,57 @@ class CourseService:
         Returns:
             Созданный курс (со статусом PENDING)
         """
-        # Создание slug из названия
-        slug = slugify(course_data.title)
+        base_slug = slugify(course_data.title)
+        max_retries = 3
 
-        # Проверка уникальности slug
-        existing_course = db.query(Course).filter(Course.slug == slug).first()
-        if existing_course:
-            slug = f"{slug}-{course_data.category_id}"
+        for attempt in range(max_retries):
+            # Generate slug with suffix on retry
+            if attempt == 0:
+                slug = base_slug
+            elif attempt == 1:
+                slug = f"{base_slug}-{course_data.category_id}"
+            else:
+                # Use short UUID suffix for guaranteed uniqueness
+                slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
 
-        # Создание курса
-        new_course = Course(
-            title=course_data.title,
-            slug=slug,
-            short_description=course_data.short_description,
-            full_description=course_data.full_description,
-            official_url=course_data.official_url,
-            logo_url=course_data.logo_url,
-            category_id=course_data.category_id,
-            subcategory_id=course_data.subcategory_id,
-            format=course_data.format,
-            price_type=course_data.price_type,
-            price_amount=course_data.price_amount,
-            currency=course_data.currency,
-            duration_hours=course_data.duration_hours,
-            duration_weeks=course_data.duration_weeks,
-            language=course_data.language,
-            has_certificate=course_data.has_certificate,
-            difficulty_level=course_data.difficulty_level,
-            requirements=course_data.requirements,
-            what_you_learn=course_data.what_you_learn,
-            country=course_data.country,
-            city=course_data.city,
-            status=CourseStatus.PENDING  # Требует модерации
-        )
+            # Создание курса
+            new_course = Course(
+                title=course_data.title,
+                slug=slug,
+                short_description=course_data.short_description,
+                full_description=course_data.full_description,
+                official_url=course_data.official_url,
+                logo_url=course_data.logo_url,
+                category_id=course_data.category_id,
+                subcategory_id=course_data.subcategory_id,
+                format=course_data.format,
+                price_type=course_data.price_type,
+                price_amount=course_data.price_amount,
+                currency=course_data.currency,
+                duration_hours=course_data.duration_hours,
+                duration_weeks=course_data.duration_weeks,
+                language=course_data.language,
+                has_certificate=course_data.has_certificate,
+                difficulty_level=course_data.difficulty_level,
+                requirements=course_data.requirements,
+                what_you_learn=course_data.what_you_learn,
+                country=course_data.country,
+                city=course_data.city,
+                status=CourseStatus.PENDING  # Требует модерации
+            )
 
-        db.add(new_course)
-        db.commit()
-        db.refresh(new_course)
+            try:
+                db.add(new_course)
+                db.commit()
+                db.refresh(new_course)
+                break  # Success
+            except IntegrityError as e:
+                db.rollback()
+                # If it's a slug collision, retry with different slug
+                if "slug" in str(e.orig).lower() and attempt < max_retries - 1:
+                    continue
+                # Re-raise for other errors or last attempt
+                raise
 
         # Инвалидация кэша (новый курс добавлен)
         CourseService._invalidate_cache()
