@@ -1,4 +1,5 @@
 from typing import Optional
+import logging
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -7,6 +8,8 @@ from app.core.config import settings
 from app.core.security import is_token_blacklisted
 from app.db.base import get_db
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 # Required authentication - throws 401 if no token
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
@@ -35,6 +38,7 @@ async def get_current_user(
 
     # Check if token has been revoked (logout)
     if is_token_blacklisted(token):
+        logger.warning("Attempt to use blacklisted (revoked) token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has been revoked",
@@ -54,10 +58,12 @@ async def get_current_user(
         raise credentials_exception
 
     if not user.is_active:
+        logger.warning(f"Inactive user {user.id} ({user.email}) attempted access")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user")
 
     if user.is_blocked:
-        raise HTTPException(status_code=403, detail="User is blocked")
+        logger.warning(f"Blocked user {user.id} ({user.email}) attempted access")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is blocked")
 
     return user
 

@@ -14,6 +14,7 @@ from app.models.user import User, UserRole
 from app.models.review import Review
 from app.models.report import Report, ReportStatus
 from app.utils.db_helpers import get_or_404
+from app.services.course_service import escape_like_pattern
 
 
 class AdminService:
@@ -114,9 +115,11 @@ class AdminService:
         query = db.query(User)
 
         if search:
+            # SECURITY: Escape LIKE wildcards to prevent injection
+            safe_search = escape_like_pattern(search)
             query = query.filter(
-                (User.email.ilike(f"%{search}%")) |
-                (User.full_name.ilike(f"%{search}%"))
+                (User.email.ilike(f"%{safe_search}%", escape="\\")) |
+                (User.full_name.ilike(f"%{safe_search}%", escape="\\"))
             )
 
         if role:

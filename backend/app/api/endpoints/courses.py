@@ -16,7 +16,7 @@ router = APIRouter()
 
 @router.get("/", response_model=List[CourseListItem])
 async def get_courses(
-    skip: int = Query(0, ge=0),
+    skip: int = Query(0, ge=0, le=10000),  # SECURITY: Prevent excessive offset
     limit: int = Query(20, ge=1, le=100),
     category_id: Optional[int] = None,
     search: Optional[str] = None,

@@ -10,6 +10,7 @@ from sqlalchemy import or_, func
 
 from app.models.course import Course, CourseStatus
 from app.core.validators import validate_search_query, sanitize_text
+from app.services.course_service import escape_like_pattern
 
 
 class SearchService:
@@ -42,14 +43,15 @@ class SearchService:
         validated_query = validate_search_query(query)
         sanitized_query = sanitize_text(validated_query)
 
-        # Поиск по названию и описанию
-        search_pattern = f"%{sanitized_query}%"
+        # SECURITY: Escape LIKE wildcards to prevent injection
+        escaped_query = escape_like_pattern(sanitized_query)
+        search_pattern = f"%{escaped_query}%"
 
         courses = db.query(Course).filter(
             Course.status == CourseStatus.APPROVED,
             or_(
-                Course.title.ilike(search_pattern),
-                Course.short_description.ilike(search_pattern)
+                Course.title.ilike(search_pattern, escape="\\"),
+                Course.short_description.ilike(search_pattern, escape="\\")
             )
         ).order_by(
             # Сначала точные совпадения в названии
@@ -81,11 +83,13 @@ class SearchService:
             return []
 
         sanitized_query = sanitize_text(query)
-        search_pattern = f"%{sanitized_query}%"
+        # SECURITY: Escape LIKE wildcards to prevent injection
+        escaped_query = escape_like_pattern(sanitized_query)
+        search_pattern = f"%{escaped_query}%"
 
         courses = db.query(Course.id, Course.title).filter(
             Course.status == CourseStatus.APPROVED,
-            Course.title.ilike(search_pattern)
+            Course.title.ilike(search_pattern, escape="\\")
         ).order_by(
             Course.avg_rating.desc()
         ).limit(limit).all()
