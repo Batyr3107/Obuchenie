@@ -1,10 +1,26 @@
 import { create } from 'zustand'
 import { authAPI } from '../services/api'
 
-export const useAuthStore = create((set) => ({
+/**
+ * Auth Store
+ *
+ * Best Practice: Centralized auth state management with event-based logout
+ * for handling 401 responses from API interceptor.
+ */
+export const useAuthStore = create((set, get) => ({
   user: null,
   token: localStorage.getItem('token') || null,
   isAuthenticated: !!localStorage.getItem('token'),
+
+  // Initialize auth event listener (call this in App.jsx useEffect)
+  initAuthListener: () => {
+    const handleLogout = () => {
+      get().logout()
+      // Navigate will be handled by component watching isAuthenticated
+    }
+    window.addEventListener('auth:logout', handleLogout)
+    return () => window.removeEventListener('auth:logout', handleLogout)
+  },
 
   login: async (email, password) => {
     try {

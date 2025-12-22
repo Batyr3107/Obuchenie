@@ -1,8 +1,15 @@
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Enum as SQLEnum, Float, ForeignKey, Table, Index
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import enum
+
+
 from app.db.base import Base
+
+
+def utc_now() -> datetime:
+    """Get current UTC time (timezone-aware)"""
+    return datetime.now(timezone.utc)
 
 # Many-to-Many таблица для курсов и тегов
 course_tags = Table(
@@ -95,8 +102,8 @@ class Course(Base):
     favorites_count = Column(Integer, default=0)
 
     # Временные метки
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
     # PERFORMANCE: Composite indexes для оптимизации частых запросов
     __table_args__ = (

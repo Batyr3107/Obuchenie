@@ -7,8 +7,8 @@ from sqlalchemy.exc import IntegrityError
 from typing import List
 from datetime import datetime, timezone
 
-from app.api.dependencies.auth import get_current_active_user, get_current_admin_user
-from app.api.dependencies.database import get_db
+from app.api.dependencies.auth import get_current_admin
+from app.db.base import get_db
 from app.models.telegram_subscriber import TelegramSubscriber
 from app.models.user import User
 from app.schemas.telegram_subscriber import (
@@ -156,7 +156,7 @@ async def get_all_subscribers(
     skip: int = 0,
     limit: int = 100,
     active_only: bool = False,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """
@@ -173,7 +173,7 @@ async def get_all_subscribers(
 
 @router.get("/admin/subscribers/stats")
 async def get_subscribers_stats(
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """

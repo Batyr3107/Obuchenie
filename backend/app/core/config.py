@@ -76,9 +76,24 @@ class Settings(BaseSettings):
 
     @field_validator("SECRET_KEY")
     @classmethod
-    def validate_secret_key(cls, v: str) -> str:
+    def validate_secret_key(cls, v: str, info) -> str:
+        """
+        Validate SECRET_KEY security requirements.
+
+        SECURITY: Ensures strong secret key in production.
+        """
         if len(v) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters long")
+
+        # Check for weak/common patterns in production
+        env = info.data.get("ENVIRONMENT", "development")
+        if env == "production":
+            weak_patterns = ["secret", "changeme", "password", "test", "demo", "example", "12345"]
+            v_lower = v.lower()
+            for pattern in weak_patterns:
+                if pattern in v_lower:
+                    raise ValueError(f"SECRET_KEY contains weak pattern '{pattern}' - not allowed in production")
+
         return v
 
     # ============= CORS =============
@@ -219,6 +234,14 @@ settings = Settings()
 
 # Validate critical settings on startup
 if settings.is_production():
-    assert settings.SECRET_KEY != secrets.token_urlsafe(32), "SECRET_KEY must be set in production"
+    # SECRET_KEY validation is now handled in field_validator
+    # This check ensures SECRET_KEY was explicitly set (not auto-generated)
+    # by checking if it was provided via environment variable
+    import os
+    if not os.getenv("SECRET_KEY"):
+        raise ValueError(
+            "SECRET_KEY must be explicitly set via environment variable in production. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+        )
     assert settings.DEBUG is False, "DEBUG must be False in production"
     assert "*" not in settings.BACKEND_CORS_ORIGINS, "Wildcard CORS not allowed in production"

@@ -3,17 +3,25 @@ User Service
 
 ARCHITECTURE: Бизнес-логика для работы с пользователями
 TESTABILITY: Легко тестируется без HTTP слоя
+SECURITY: Handles race conditions in user registration
 """
 from typing import Optional
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status
 
 from app.models.user import User
 from app.schemas.user import UserCreate
-from app.core.security import get_password_hash, verify_password
+from app.core.security import (
+    get_password_hash,
+    verify_password,
+    is_account_locked,
+    record_failed_login,
+    clear_failed_login_attempts
+)
 from app.core.validators import validate_email, sanitize_text
-from app.utils.db_helpers import exists_or_400
+from app.core.config import settings
 
 
 class UserService:
@@ -26,6 +34,8 @@ class UserService:
 
         CLEAN CODE: Вся логика регистрации в одном месте
         TESTABILITY: Можно тестировать без HTTP
+        SECURITY: Uses try/except IntegrityError to prevent TOCTOU race condition.
+                  The database UNIQUE constraint is the source of truth.
 
         Args:
             db: Database session
@@ -41,15 +51,6 @@ class UserService:
         validated_email = validate_email(user_data.email)
         sanitized_full_name = sanitize_text(user_data.full_name, max_length=200)
 
-        # Проверка существования email
-        exists_or_400(
-            db,
-            User,
-            "email",
-            validated_email,
-            "Email already registered"
-        )
-
         # Создание пользователя
         new_user = User(
             email=validated_email,
@@ -57,9 +58,21 @@ class UserService:
             full_name=sanitized_full_name
         )
 
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
+        # SECURITY: Rely on DB unique constraint, not check-then-insert (TOCTOU)
+        try:
+            db.add(new_user)
+            db.commit()
+            db.refresh(new_user)
+        except IntegrityError as e:
+            db.rollback()
+            # Check if it's a duplicate email error
+            if "email" in str(e.orig).lower() or "unique" in str(e.orig).lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already registered"
+                )
+            # Re-raise for other integrity errors
+            raise
 
         return new_user
 
@@ -70,7 +83,12 @@ class UserService:
         password: str
     ) -> User:
         """
-        Аутентификация пользователя
+        Аутентификация пользователя с защитой от brute-force.
+
+        SECURITY:
+        - Account lockout after MAX_LOGIN_ATTEMPTS failed attempts
+        - Tracks failed attempts in Redis (or skips if unavailable)
+        - Clears attempts on successful login
 
         Args:
             db: Database session
@@ -81,20 +99,39 @@ class UserService:
             Аутентифицированный пользователь
 
         Raises:
+            HTTPException: 429 если аккаунт заблокирован
             HTTPException: 401 если credentials неверные
             HTTPException: 400 если пользователь неактивен
         """
         # Валидация email
         validated_email = validate_email(email)
 
+        # SECURITY: Check if account is locked
+        if is_account_locked(validated_email):
+            timeout = getattr(settings, 'LOGIN_ATTEMPT_TIMEOUT', 900)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Account temporarily locked. Try again in {timeout // 60} minutes.",
+                headers={"Retry-After": str(timeout)},
+            )
+
         # Поиск пользователя
         user = db.query(User).filter(User.email == validated_email).first()
 
         # Проверка пароля
         if not user or not verify_password(password, user.hashed_password):
+            # Record failed attempt
+            attempts = record_failed_login(validated_email)
+            max_attempts = getattr(settings, 'MAX_LOGIN_ATTEMPTS', 5)
+            remaining = max(0, max_attempts - attempts)
+
+            detail = "Incorrect email or password"
+            if remaining > 0 and remaining <= 3:
+                detail = f"{detail}. {remaining} attempts remaining."
+
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password",
+                detail=detail,
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
@@ -104,6 +141,9 @@ class UserService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Inactive user"
             )
+
+        # SECURITY: Clear failed attempts on successful login
+        clear_failed_login_attempts(validated_email)
 
         return user
 

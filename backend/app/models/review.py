@@ -1,8 +1,13 @@
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Enum as SQLEnum, ForeignKey, Float, Index
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import enum
 from app.db.base import Base
+
+
+def utc_now() -> datetime:
+    """Get current UTC time (timezone-aware)"""
+    return datetime.now(timezone.utc)
 
 
 class CompletionStatus(str, enum.Enum):
@@ -49,9 +54,9 @@ class Review(Base):
     is_blocked = Column(Boolean, default=False)
 
     # Временные метки
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    last_edited_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    last_edited_at = Column(DateTime(timezone=True), nullable=True)
 
     # PERFORMANCE: Composite indexes для оптимизации частых запросов
     __table_args__ = (

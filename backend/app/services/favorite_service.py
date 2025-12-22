@@ -10,7 +10,7 @@ from fastapi import HTTPException, status
 
 from app.models.favorite import Favorite
 from app.models.course import Course
-from app.utils.db_helpers import get_or_404, increment_counter, decrement_counter
+from app.utils.db_helpers import get_or_404, atomic_increment
 
 
 class FavoriteService:
@@ -36,25 +36,14 @@ class FavoriteService:
         # Проверка существования курса
         course = get_or_404(db, Course, course_id)
 
-        # Проверка, не добавлен ли уже
-        existing = db.query(Favorite).filter(
-            Favorite.user_id == user_id,
-            Favorite.course_id == course_id
-        ).first()
-
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Course already in favorites"
-            )
-
-        # Создание записи
+        # SECURITY: No TOCTOU - rely on IntegrityError from UNIQUE constraint
         try:
             favorite = Favorite(user_id=user_id, course_id=course_id)
             db.add(favorite)
+            db.flush()  # Get ID before atomic increment
 
-            # Увеличение счетчика
-            increment_counter(db, course, "favorites_count")
+            # CONCURRENCY: Atomic increment prevents race conditions
+            atomic_increment(db, Course, course_id, "favorites_count")
 
             db.commit()
             db.refresh(favorite)
@@ -70,7 +59,7 @@ class FavoriteService:
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to add favorite: {str(e)}"
+                detail="Failed to add favorite"
             )
 
     @staticmethod
@@ -97,20 +86,18 @@ class FavoriteService:
                 detail="Favorite not found"
             )
 
-        course = get_or_404(db, Course, course_id)
-
         try:
             db.delete(favorite)
 
-            # Уменьшение счетчика
-            decrement_counter(db, course, "favorites_count")
+            # CONCURRENCY: Atomic decrement prevents race conditions
+            atomic_increment(db, Course, course_id, "favorites_count", -1)
 
             db.commit()
-        except SQLAlchemyError as e:
+        except SQLAlchemyError:
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to remove favorite: {str(e)}"
+                detail="Failed to remove favorite"
             )
 
     @staticmethod

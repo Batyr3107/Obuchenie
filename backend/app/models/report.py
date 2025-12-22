@@ -1,8 +1,13 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Enum as SQLEnum, ForeignKey, Boolean, Index
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import enum
 from app.db.base import Base
+
+
+def utc_now() -> datetime:
+    """Get current UTC time (timezone-aware)"""
+    return datetime.now(timezone.utc)
 
 
 class ReportReason(str, enum.Enum):
@@ -39,8 +44,8 @@ class Report(Base):
     status = Column(SQLEnum(ReportStatus), default=ReportStatus.PENDING, index=True)
 
     # Временные метки
-    created_at = Column(DateTime, default=datetime.utcnow)
-    resolved_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
 
     # PERFORMANCE: Composite index для оптимизации админ-запросов
     __table_args__ = (

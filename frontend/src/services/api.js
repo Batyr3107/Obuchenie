@@ -24,12 +24,16 @@ api.interceptors.request.use(
 )
 
 // Interceptor для обработки ошибок
+// NOTE: Используем window.location для простоты, т.к. interceptor
+// находится вне React контекста. Для SPA-friendly навигации
+// можно использовать event-based подход или store action.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
-      window.location.href = '/login'
+      // Dispatch custom event for auth state change
+      window.dispatchEvent(new CustomEvent('auth:logout'))
     }
     return Promise.reject(error)
   }

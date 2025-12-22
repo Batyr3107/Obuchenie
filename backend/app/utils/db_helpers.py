@@ -4,7 +4,7 @@ Database Helper Functions
 DRY: Переиспользуемые функции для работы с БД
 Устраняет дублирование проверок существования объектов в 10+ местах
 """
-from typing import Type, TypeVar, Optional
+from typing import Type, TypeVar, Optional, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi import HTTPException, status
@@ -53,7 +53,7 @@ def get_by_field_or_404(
     db: Session,
     model: Type[T],
     field_name: str,
-    field_value: any,
+    field_value: Any,
     error_msg: Optional[str] = None
 ) -> T:
     """
@@ -88,7 +88,7 @@ def exists_or_400(
     db: Session,
     model: Type[T],
     field_name: str,
-    field_value: any,
+    field_value: Any,
     error_msg: Optional[str] = None
 ) -> None:
     """
@@ -149,7 +149,10 @@ def increment_counter(
     value: int = 1
 ) -> None:
     """
-    Увеличить счетчик у объекта
+    Увеличить счетчик у объекта (НЕ атомарно!)
+
+    WARNING: This function has a race condition! Use atomic_increment for
+    counters that may be updated concurrently (views, likes, etc.)
 
     Args:
         db: Database session
@@ -163,6 +166,37 @@ def increment_counter(
     """
     current_value = getattr(obj, field_name, 0)
     setattr(obj, field_name, current_value + value)
+
+
+def atomic_increment(
+    db: Session,
+    model: Type[T],
+    obj_id: int,
+    field_name: str,
+    value: int = 1
+) -> None:
+    """
+    Атомарно увеличить счетчик в БД.
+
+    CONCURRENCY: Использует SQL SET field = field + 1, что предотвращает
+    race conditions при одновременных обновлениях.
+
+    Args:
+        db: Database session
+        model: SQLAlchemy модель
+        obj_id: ID объекта
+        field_name: Имя поля-счетчика
+        value: Значение для увеличения (по умолчанию 1)
+
+    Example:
+        >>> atomic_increment(db, Course, course.id, "views_count")
+        >>> atomic_increment(db, Review, review.id, "helpful_votes", 1)
+    """
+    field = getattr(model, field_name)
+    db.query(model).filter(model.id == obj_id).update(
+        {field_name: field + value},
+        synchronize_session=False
+    )
 
 
 def decrement_counter(
