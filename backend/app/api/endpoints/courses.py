@@ -120,7 +120,7 @@ async def get_course_reviews(
     course_id: int,
     skip: int = Query(0, ge=0, description="Number of reviews to skip"),
     limit: int = Query(10, ge=1, le=50, description="Max reviews to return"),
-    sort: str = Query("recent", regex="^(recent|helpful|rating_high|rating_low)$"),
+    sort: str = Query("recent", pattern="^(recent|helpful|rating_high|rating_low)$"),
     db: Session = Depends(get_db)
 ):
     """
