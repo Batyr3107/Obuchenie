@@ -62,6 +62,7 @@ class Review(Base):
     __table_args__ = (
         Index('ix_review_course_approved', 'course_id', 'is_approved'),  # Для получения одобренных отзывов курса
         Index('ix_review_course_created', 'course_id', 'created_at'),    # Для сортировки отзывов по дате
+        Index('ix_review_helpful_count', 'helpful_count'),               # Для сортировки по полезности
     )
 
     # Relationships

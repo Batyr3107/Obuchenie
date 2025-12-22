@@ -41,6 +41,13 @@ class ReportService:
         # Проверка существования отзыва
         review = get_or_404(db, Review, report_data.review_id, "Review not found")
 
+        # SECURITY: Prevent self-reporting
+        if review.user_id == user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot report your own review"
+            )
+
         # Проверка дубликата жалобы
         existing = db.query(Report).filter(
             Report.review_id == report_data.review_id,
@@ -58,7 +65,7 @@ class ReportService:
             review_id=report_data.review_id,
             user_id=user_id,
             reason=report_data.reason,
-            comment=report_data.comment,
+            description=report_data.description,
             status=ReportStatus.PENDING
         )
 

@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
+import re
 from datetime import datetime
 from app.models.review import CompletionStatus
 from app.core.sanitizer import sanitize_text, sanitize_html
@@ -40,6 +41,19 @@ class ReviewCreate(BaseModel):
             return []
         return [sanitize_text(item, max_length=200) for item in v if item]
 
+    @field_validator('completion_date')
+    @classmethod
+    def validate_completion_date(cls, v):
+        """Validate completion_date format YYYY-MM"""
+        if v is None:
+            return v
+        if not re.match(r'^\d{4}-(0[1-9]|1[0-2])$', v):
+            raise ValueError('Date must be in YYYY-MM format (e.g., 2024-01)')
+        year = int(v.split('-')[0])
+        if year < 1990 or year > 2100:
+            raise ValueError('Invalid year')
+        return v
+
 
 # Review Update
 class ReviewUpdate(BaseModel):
@@ -72,6 +86,19 @@ class ReviewUpdate(BaseModel):
         if v is None:
             return None
         return [sanitize_text(item, max_length=200) for item in v if item]
+
+    @field_validator('completion_date')
+    @classmethod
+    def validate_completion_date(cls, v):
+        """Validate completion_date format YYYY-MM"""
+        if v is None:
+            return v
+        if not re.match(r'^\d{4}-(0[1-9]|1[0-2])$', v):
+            raise ValueError('Date must be in YYYY-MM format (e.g., 2024-01)')
+        year = int(v.split('-')[0])
+        if year < 1990 or year > 2100:
+            raise ValueError('Invalid year')
+        return v
 
 
 # Review Response
