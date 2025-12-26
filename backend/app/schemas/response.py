@@ -2,7 +2,7 @@
 Стандартизированные модели ответов API
 """
 from typing import Generic, TypeVar, Optional, List, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 DataT = TypeVar('DataT')
@@ -19,14 +19,13 @@ class SuccessResponse(ResponseBase, Generic[DataT]):
     success: bool = Field(default=True, description="Всегда True для успешных ответов")
     data: DataT = Field(..., description="Данные ответа")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "message": "Operation completed successfully",
-                "data": {"id": 1, "name": "Example"}
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "success": True,
+            "message": "Operation completed successfully",
+            "data": {"id": 1, "name": "Example"}
         }
+    })
 
 
 class ErrorResponse(ResponseBase):
@@ -35,15 +34,14 @@ class ErrorResponse(ResponseBase):
     error: str = Field(..., description="Тип ошибки")
     details: Optional[Any] = Field(None, description="Детали ошибки")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": False,
-                "message": "Validation failed",
-                "error": "ValidationError",
-                "details": {"field": "email", "message": "Invalid email format"}
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "success": False,
+            "message": "Validation failed",
+            "error": "ValidationError",
+            "details": {"field": "email", "message": "Invalid email format"}
         }
+    })
 
 
 class PaginationMeta(BaseModel):
@@ -55,9 +53,28 @@ class PaginationMeta(BaseModel):
     has_next: bool = Field(..., description="Есть ли следующая страница")
     has_prev: bool = Field(..., description="Есть ли предыдущая страница")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "total": 100,
+            "page": 1,
+            "per_page": 20,
+            "total_pages": 5,
+            "has_next": True,
+            "has_prev": False
+        }
+    })
+
+
+class PaginatedResponse(SuccessResponse[List[DataT]]):
+    """Ответ с пагинированными данными"""
+    meta: PaginationMeta = Field(..., description="Метаданные пагинации")
+
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "success": True,
+            "message": "Data retrieved successfully",
+            "data": [{"id": 1, "name": "Item 1"}, {"id": 2, "name": "Item 2"}],
+            "meta": {
                 "total": 100,
                 "page": 1,
                 "per_page": 20,
@@ -66,41 +83,19 @@ class PaginationMeta(BaseModel):
                 "has_prev": False
             }
         }
-
-
-class PaginatedResponse(SuccessResponse[List[DataT]]):
-    """Ответ с пагинированными данными"""
-    meta: PaginationMeta = Field(..., description="Метаданные пагинации")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "message": "Data retrieved successfully",
-                "data": [{"id": 1, "name": "Item 1"}, {"id": 2, "name": "Item 2"}],
-                "meta": {
-                    "total": 100,
-                    "page": 1,
-                    "per_page": 20,
-                    "total_pages": 5,
-                    "has_next": True,
-                    "has_prev": False
-                }
-            }
-        }
+    })
 
 
 class MessageResponse(ResponseBase):
     """Простой ответ с сообщением (без данных)"""
     success: bool = Field(default=True, description="Статус операции")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "message": "Operation completed successfully"
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "success": True,
+            "message": "Operation completed successfully"
         }
+    })
 
 
 # Хелпер функции для создания ответов

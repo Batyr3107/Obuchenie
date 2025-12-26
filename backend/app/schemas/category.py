@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 
 
@@ -16,8 +16,7 @@ class CategoryResponse(BaseModel):
     description: Optional[str]
     icon: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Subcategory
@@ -32,13 +31,11 @@ class SubcategoryResponse(BaseModel):
     slug: str
     category_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Category with subcategories
 class CategoryWithSubcategories(CategoryResponse):
     subcategories: List[SubcategoryResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

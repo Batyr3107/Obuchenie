@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl, Field, field_validator
+from pydantic import BaseModel, HttpUrl, Field, field_validator, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from app.models.course import CourseFormat, PriceType, DifficultyLevel, CourseStatus
@@ -158,8 +158,7 @@ class CourseResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Course List (краткая версия для списков)
@@ -175,5 +174,4 @@ class CourseListItem(BaseModel):
     price_amount: Optional[float]
     currency: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

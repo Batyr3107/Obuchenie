@@ -1,11 +1,14 @@
 """
 API endpoints для Telegram бота
+
+SECURITY: Все endpoint'ы защищены API ключом для предотвращения IDOR атак
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timezone
+import secrets
 
 from app.api.dependencies.auth import get_current_admin
 from app.db.base import get_db
@@ -16,14 +19,48 @@ from app.schemas.telegram_subscriber import (
     TelegramSubscriberUpdate,
     TelegramSubscriberResponse
 )
+from app.core.config import settings
 
 router = APIRouter(prefix="/telegram", tags=["telegram"])
+
+
+async def verify_telegram_api_key(
+    x_telegram_api_key: Optional[str] = Header(None, alias="X-Telegram-API-Key")
+) -> None:
+    """
+    Проверка API ключа для Telegram бота
+
+    SECURITY: Защищает endpoints от несанкционированного доступа.
+    Использует secrets.compare_digest для защиты от timing attacks.
+    """
+    if not settings.TELEGRAM_API_KEY:
+        # В development режиме без ключа - пропускаем
+        if settings.is_production():
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Telegram API key not configured"
+            )
+        return
+
+    if not x_telegram_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing X-Telegram-API-Key header"
+        )
+
+    # Защита от timing attacks
+    if not secrets.compare_digest(x_telegram_api_key, settings.TELEGRAM_API_KEY):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key"
+        )
 
 
 @router.post("/subscribe", response_model=TelegramSubscriberResponse, status_code=status.HTTP_201_CREATED)
 async def subscribe_telegram(
     subscriber_data: TelegramSubscriberCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_telegram_api_key)
 ):
     """
     Подписаться на уведомления от Telegram бота
@@ -78,7 +115,8 @@ async def subscribe_telegram(
 @router.post("/unsubscribe/{telegram_user_id}", status_code=status.HTTP_200_OK)
 async def unsubscribe_telegram(
     telegram_user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_telegram_api_key)
 ):
     """
     Отписаться от уведомлений Telegram бота
@@ -103,7 +141,8 @@ async def unsubscribe_telegram(
 @router.get("/subscriber/{telegram_user_id}", response_model=TelegramSubscriberResponse)
 async def get_subscriber(
     telegram_user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_telegram_api_key)
 ):
     """
     Получить информацию о подписчике
@@ -125,7 +164,8 @@ async def get_subscriber(
 async def update_subscriber(
     telegram_user_id: int,
     update_data: TelegramSubscriberUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_telegram_api_key)
 ):
     """
     Обновить настройки подписки
