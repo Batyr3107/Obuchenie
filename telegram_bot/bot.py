@@ -6,6 +6,7 @@ import os
 import asyncio
 import logging
 import requests
+from urllib.parse import quote
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -19,10 +20,19 @@ from telegram.ext import (
 # Настройки
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 API_URL = os.getenv("API_URL", "http://localhost:8000/api/v1")
+TELEGRAM_API_KEY = os.getenv("TELEGRAM_API_KEY", "")
 REQUEST_TIMEOUT = 10  # Таймаут для HTTP запросов в секундах
 
 # Logger
 logger = logging.getLogger(__name__)
+
+
+def get_api_headers() -> dict:
+    """Получить заголовки для API запросов"""
+    headers = {"Content-Type": "application/json"}
+    if TELEGRAM_API_KEY:
+        headers["X-Telegram-API-Key"] = TELEGRAM_API_KEY
+    return headers
 
 
 # ============ КОМАНДЫ ============
@@ -86,6 +96,7 @@ async def top_courses(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /top - топ курсы"""
     try:
         response = requests.get(f"{API_URL}/courses?limit=10&min_rating=4.5", timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
         courses = response.json()
 
         if not courses:
@@ -106,13 +117,15 @@ async def top_courses(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(message, parse_mode='Markdown', reply_markup=reply_markup)
 
     except Exception as e:
-        await update.message.reply_text(f"Ошибка: {str(e)}")
+        logger.exception("Error fetching top courses")
+        await update.message.reply_text("⚠️ Не удалось загрузить курсы. Попробуйте позже.")
 
 
 async def categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /categories"""
     try:
         response = requests.get(f"{API_URL}/categories", timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
         categories_list = response.json()
 
         message = "📁 **Категории курсов:**\n\n"
@@ -128,7 +141,8 @@ async def categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(message, parse_mode='Markdown', reply_markup=reply_markup)
 
     except Exception as e:
-        await update.message.reply_text(f"Ошибка: {str(e)}")
+        logger.exception("Error fetching categories")
+        await update.message.reply_text("⚠️ Не удалось загрузить категории. Попробуйте позже.")
 
 
 # ============ ОБРАБОТКА ТЕКСТА ============
@@ -142,8 +156,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_search(update: Update, query: str):
     """Поиск курсов"""
     try:
-        # Поиск через API
-        response = requests.get(f"{API_URL}/courses?search={query}&limit=5", timeout=REQUEST_TIMEOUT)
+        # SECURITY: URL-encode user input to prevent injection
+        safe_query = quote(query, safe='')
+        response = requests.get(f"{API_URL}/courses?search={safe_query}&limit=5", timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
         courses = response.json()
 
         if not courses:
@@ -166,7 +182,8 @@ async def handle_search(update: Update, query: str):
         await update.message.reply_text(message, parse_mode='Markdown')
 
     except Exception as e:
-        await update.message.reply_text(f"Ошибка поиска: {str(e)}")
+        logger.exception("Error searching courses")
+        await update.message.reply_text("⚠️ Ошибка поиска. Попробуйте позже.")
 
 
 # ============ CALLBACK ОБРАБОТЧИКИ ============
@@ -181,8 +198,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Категория
     if data.startswith("cat_"):
         category_id = data.split("_")[1]
+        # SECURITY: Validate category_id is numeric
+        if not category_id.isdigit():
+            await query.edit_message_text("⚠️ Неверный ID категории")
+            return
+
         try:
             response = requests.get(f"{API_URL}/courses?category_id={category_id}&limit=10", timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
             courses = response.json()
 
             message = f"📚 **Курсы в категории:**\n\n"
@@ -192,7 +215,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(message, parse_mode='Markdown')
 
         except Exception as e:
-            await query.edit_message_text(f"Ошибка: {str(e)}")
+            logger.exception("Error fetching category courses")
+            await query.edit_message_text("⚠️ Не удалось загрузить курсы. Попробуйте позже.")
 
 
 # ============ ПОДПИСКИ И УВЕДОМЛЕНИЯ ============
@@ -213,7 +237,12 @@ async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "notify_special_offers": False
         }
 
-        response = requests.post(f"{API_URL}/telegram/subscribe", json=subscriber_data, timeout=REQUEST_TIMEOUT)
+        response = requests.post(
+            f"{API_URL}/telegram/subscribe",
+            json=subscriber_data,
+            headers=get_api_headers(),
+            timeout=REQUEST_TIMEOUT
+        )
 
         if response.status_code == 201:
             await update.message.reply_text(
@@ -228,8 +257,9 @@ async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "⚠️ Не удалось подписаться. Попробуйте позже."
             )
     except Exception as e:
+        logger.exception("Error subscribing user")
         await update.message.reply_text(
-            f"❌ Ошибка подписки: {str(e)}\n\nПопробуйте позже."
+            "❌ Ошибка подписки. Попробуйте позже."
         )
 
 
@@ -239,7 +269,11 @@ async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         # Отправляем запрос на API для отписки
-        response = requests.post(f"{API_URL}/telegram/unsubscribe/{user_id}", timeout=REQUEST_TIMEOUT)
+        response = requests.post(
+            f"{API_URL}/telegram/unsubscribe/{user_id}",
+            headers=get_api_headers(),
+            timeout=REQUEST_TIMEOUT
+        )
 
         if response.status_code == 200:
             await update.message.reply_text("❌ Вы отписались от уведомлений.")
@@ -248,7 +282,8 @@ async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("⚠️ Не удалось отписаться. Попробуйте позже.")
     except Exception as e:
-        await update.message.reply_text(f"❌ Ошибка отписки: {str(e)}\n\nПопробуйте позже.")
+        logger.exception("Error unsubscribing user")
+        await update.message.reply_text("❌ Ошибка отписки. Попробуйте позже.")
 
 
 # ============ MAIN ============

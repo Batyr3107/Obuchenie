@@ -2,8 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional
+import logging
 
 from app.db.base import get_db
+
+logger = logging.getLogger(__name__)
 from app.models.user import User, UserRole
 from app.schemas.user import UserResponse
 from app.schemas.course import CourseResponse
@@ -18,7 +21,7 @@ router = APIRouter()
 
 @router.get("/courses/pending", response_model=List[CourseResponse])
 async def get_pending_courses(
-    skip: int = Query(0, ge=0),
+    skip: int = Query(0, ge=0, le=10000),
     limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
@@ -46,9 +49,10 @@ async def approve_course(
     try:
         course = await AdminService.approve_course(db, course_id)
         return course
-    except SQLAlchemyError as e:
+    except SQLAlchemyError:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to approve course: {str(e)}")
+        logger.exception("Failed to approve course")
+        raise HTTPException(status_code=500, detail="Failed to approve course")
 
 
 @router.post("/courses/{course_id}/reject", response_model=CourseResponse)
@@ -70,7 +74,7 @@ async def reject_course(
 
 @router.get("/users", response_model=List[UserResponse])
 async def get_all_users(
-    skip: int = Query(0, ge=0),
+    skip: int = Query(0, ge=0, le=10000),
     limit: int = Query(50, ge=1, le=100),
     search: Optional[str] = None,
     role: Optional[UserRole] = None,
@@ -100,9 +104,10 @@ async def block_user(
     try:
         result = await AdminService.block_user(db, user_id)
         return result
-    except SQLAlchemyError as e:
+    except SQLAlchemyError:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to block user: {str(e)}")
+        logger.exception("Failed to block user")
+        raise HTTPException(status_code=500, detail="Failed to block user")
 
 
 @router.post("/users/{user_id}/unblock")
@@ -140,7 +145,7 @@ async def change_user_role(
 
 @router.get("/reviews/reported")
 async def get_reported_reviews(
-    skip: int = Query(0, ge=0),
+    skip: int = Query(0, ge=0, le=10000),
     limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
@@ -169,9 +174,10 @@ async def block_review(
     try:
         result = await AdminService.block_review(db, review_id)
         return result
-    except SQLAlchemyError as e:
+    except SQLAlchemyError:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to block review: {str(e)}")
+        logger.exception("Failed to block review")
+        raise HTTPException(status_code=500, detail="Failed to block review")
 
 
 @router.post("/reports/{report_id}/resolve")

@@ -33,7 +33,7 @@ class CourseCreate(BaseModel):
     country: Optional[str] = None
     city: Optional[str] = None
 
-    tags: Optional[List[str]] = []
+    tags: List[str] = Field(default_factory=list)
 
     @field_validator('title', 'short_description')
     @classmethod

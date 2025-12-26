@@ -16,8 +16,12 @@ async def compare_courses(
 ):
     """Сравнить курсы"""
 
+    # SECURITY: Validate input format before parsing to prevent DoS
+    if course_ids.count(',') > 4:
+        raise HTTPException(status_code=400, detail="Maximum 5 courses can be compared")
+
     try:
-        ids = [int(id.strip()) for id in course_ids.split(',')]
+        ids = [int(id.strip()) for id in course_ids.split(',') if id.strip()]
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid course IDs format")
 

@@ -258,10 +258,20 @@ class CourseService:
         """
         course = get_or_404(db, Course, course_id)
 
-        # Обновление полей
+        # SECURITY: Whitelist of allowed fields to prevent mass assignment
+        ALLOWED_UPDATE_FIELDS = {
+            'title', 'short_description', 'full_description', 'official_url',
+            'logo_url', 'category_id', 'subcategory_id', 'format', 'price_type',
+            'price_amount', 'currency', 'duration_hours', 'duration_weeks',
+            'language', 'has_certificate', 'difficulty_level', 'requirements',
+            'what_you_learn', 'country', 'city'
+        }
+
+        # Обновление только разрешенных полей
         update_data = course_data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
-            setattr(course, field, value)
+            if field in ALLOWED_UPDATE_FIELDS:
+                setattr(course, field, value)
 
         db.commit()
         db.refresh(course)

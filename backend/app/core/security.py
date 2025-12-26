@@ -102,8 +102,8 @@ def is_token_blacklisted(token: str) -> bool:
     if redis:
         try:
             return redis.exists(f"{BLACKLIST_PREFIX}{token_hash}") > 0
-        except Exception:
-            pass  # Fall through to in-memory check
+        except Exception as e:
+            logger.warning(f"Redis check failed, using in-memory: {e}")
 
     return token_hash in _token_blacklist
 
@@ -145,10 +145,11 @@ def record_failed_login(email: str) -> int:
             if attempts == 1:
                 redis.expire(key, timeout)
             return attempts
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Redis login tracking failed: {e}")
 
-    # Fallback - no tracking without Redis
+    # Fallback - no tracking without Redis (log warning in production)
+    logger.debug("Login attempts not tracked - Redis unavailable")
     return 0
 
 
@@ -161,8 +162,8 @@ def get_failed_login_attempts(email: str) -> int:
         try:
             attempts = redis.get(key)
             return int(attempts) if attempts else 0
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Redis get attempts failed: {e}")
 
     return 0
 
@@ -175,8 +176,8 @@ def clear_failed_login_attempts(email: str) -> None:
     if redis:
         try:
             redis.delete(key)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Redis clear attempts failed: {e}")
 
 
 def is_account_locked(email: str) -> bool:

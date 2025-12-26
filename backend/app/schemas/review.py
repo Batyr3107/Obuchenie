@@ -19,8 +19,8 @@ class ReviewCreate(BaseModel):
 
     # Текст отзыва
     review_text: str = Field(..., min_length=100)
-    pros: Optional[List[str]] = []
-    cons: Optional[List[str]] = []
+    pros: List[str] = Field(default_factory=list)
+    cons: List[str] = Field(default_factory=list)
 
     # Дополнительно
     recommend: bool = True
