@@ -17,6 +17,7 @@ from app.models.course import Course, CourseStatus
 from app.schemas.course import CourseCreate, CourseUpdate
 from app.utils.db_helpers import get_or_404, atomic_increment
 from app.core.cache import cache_manager
+from app.core.constants import CacheTimeout
 
 
 def escape_like_pattern(search: str) -> str:
@@ -44,7 +45,7 @@ class CourseService:
     """Сервис для работы с курсами"""
 
     CACHE_KEY_PREFIX = "courses_list"
-    CACHE_TTL = 1800  # 30 минут (курсы обновляются чаще чем категории)
+    CACHE_TTL = CacheTimeout.COURSES_LIST
 
     @staticmethod
     async def get_courses(

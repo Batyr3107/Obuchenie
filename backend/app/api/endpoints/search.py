@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from app.db.base import get_db
 from app.core.cache import cache_manager
+from app.core.constants import CacheTimeout
 from app.services.search_service import SearchService
 
 router = APIRouter()
@@ -47,8 +48,8 @@ async def autocomplete_search(
         for course in courses
     ]
 
-    # Сохраняем в кэш на 5 минут (300 секунд)
-    cache_manager.set(cache_key, suggestions, expire=300)
+    # Сохраняем в кэш
+    cache_manager.set(cache_key, suggestions, expire=CacheTimeout.SEARCH)
 
     return suggestions
 
@@ -76,7 +77,7 @@ async def get_popular_searches(db: Session = Depends(get_db)):
         for course in popular_courses
     ]
 
-    # Сохраняем в кэш на 30 минут (1800 секунд)
-    cache_manager.set(cache_key, result, expire=1800)
+    # Сохраняем в кэш
+    cache_manager.set(cache_key, result, expire=CacheTimeout.THIRTY_MINUTES)
 
     return result

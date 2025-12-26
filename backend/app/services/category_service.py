@@ -13,6 +13,7 @@ from fastapi import HTTPException, status
 from app.models.category import Category, Subcategory
 from app.schemas.category import CategoryCreate, SubcategoryCreate
 from app.core.cache import cache_manager
+from app.core.constants import CacheTimeout
 from app.utils.db_helpers import get_or_404
 
 
@@ -20,7 +21,7 @@ class CategoryService:
     """Сервис для работы с категориями"""
 
     CACHE_KEY_ALL = "all_categories"
-    CACHE_TTL = 3600  # 1 час
+    CACHE_TTL = CacheTimeout.CATEGORIES
 
     @staticmethod
     async def get_all_categories(db: Session) -> List[Category]:

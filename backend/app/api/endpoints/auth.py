@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, Request
+from fastapi import APIRouter, Depends, status, Request, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -28,8 +28,15 @@ async def register(
     Регистрация нового пользователя
 
     CLEAN CODE: Вся бизнес-логика в UserService
-    Endpoint всего ~3 строки вместо 30!
+    FEATURE FLAG: Проверка settings.ENABLE_REGISTRATION
     """
+    # Feature flag enforcement
+    if not settings.ENABLE_REGISTRATION:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Registration is currently disabled"
+        )
+
     user = await UserService.register_user(db, user_data)
     return user
 

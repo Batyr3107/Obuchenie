@@ -3,6 +3,7 @@ Report Service
 
 ARCHITECTURE: Бизнес-логика для работы с жалобами на отзывы
 """
+from typing import List
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -97,7 +98,7 @@ class ReportService:
         user_id: int,
         skip: int = 0,
         limit: int = 20
-    ) -> list:
+    ) -> List[Report]:
         """
         Получение жалоб пользователя
 

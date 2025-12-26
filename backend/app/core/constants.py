@@ -116,6 +116,7 @@ class Pagination:
     MIN_PAGE_SIZE = 1
     DEFAULT_PAGE_SIZE = 20
     MAX_PAGE_SIZE = 100
+    MAX_SKIP_VALUE = 10000  # Prevent excessive offset attacks
 
 
 # ============= Rating =============
@@ -234,6 +235,14 @@ class Timeouts:
     REDIS_CONNECTION = 5
     CACHE_LOCK = 10
     API_CALL = 60
+    TELEGRAM_REQUEST = 10  # Timeout for Telegram bot HTTP requests
+
+
+# ============= Email =============
+class EmailSettings:
+    """Email service settings"""
+    MAX_RETRIES = 3
+    RETRY_DELAY = 2  # seconds
 
 
 # ============= Retry Settings =============

@@ -1,5 +1,6 @@
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from app.core.config import settings
+from app.core.constants import EmailSettings
 from typing import List, Optional
 import logging
 import asyncio
@@ -25,10 +26,60 @@ conf = ConnectionConfig(
 fm = FastMail(conf)
 
 
+def _wrap_email_template(title: str, content: str) -> str:
+    """
+    Обертка HTML шаблона для email
+
+    DRY: Единый базовый шаблон для всех писем
+
+    Args:
+        title: Заголовок письма
+        content: HTML контент письма
+
+    Returns:
+        Полный HTML шаблон
+    """
+    return f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #0ea5e9;">{title}</h2>
+                {content}
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="color: #666; font-size: 14px;">С уважением,<br>Команда CourseRate</p>
+            </div>
+        </body>
+    </html>
+    """
+
+
+def _create_email_message(subject: str, recipients: List[str], content: str, title: str) -> MessageSchema:
+    """
+    Создание объекта email сообщения
+
+    DRY: Единая точка создания MessageSchema
+
+    Args:
+        subject: Тема письма
+        recipients: Список получателей
+        content: HTML контент (без обертки)
+        title: Заголовок в теле письма
+
+    Returns:
+        MessageSchema объект
+    """
+    return MessageSchema(
+        subject=subject,
+        recipients=recipients,
+        body=_wrap_email_template(title, content),
+        subtype="html"
+    )
+
+
 async def send_email_with_retry(
     message: MessageSchema,
-    max_retries: int = 3,
-    retry_delay: int = 2
+    max_retries: int = EmailSettings.MAX_RETRIES,
+    retry_delay: int = EmailSettings.RETRY_DELAY
 ) -> bool:
     """
     Отправка email с повторными попытками и обработкой ошибок
@@ -82,162 +133,112 @@ async def send_email_with_retry(
 
 async def send_welcome_email(email: str, name: str) -> bool:
     """Отправить приветственное письмо"""
-    html = f"""
-    <html>
-        <body>
-            <h2>Добро пожаловать в CourseRate!</h2>
-            <p>Привет, {name}!</p>
-            <p>Спасибо за регистрацию на платформе CourseRate.</p>
-            <p>Теперь вы можете:</p>
-            <ul>
-                <li>Оставлять отзывы на курсы</li>
-                <li>Добавлять новые курсы</li>
-                <li>Сохранять курсы в избранное</li>
-            </ul>
-            <p>С уважением,<br>Команда CourseRate</p>
-        </body>
-    </html>
+    content = f"""
+        <p>Привет, {name}!</p>
+        <p>Спасибо за регистрацию на платформе CourseRate.</p>
+        <p>Теперь вы можете:</p>
+        <ul>
+            <li>Оставлять отзывы на курсы</li>
+            <li>Добавлять новые курсы</li>
+            <li>Сохранять курсы в избранное</li>
+        </ul>
     """
-
-    message = MessageSchema(
+    message = _create_email_message(
         subject="Добро пожаловать в CourseRate!",
         recipients=[email],
-        body=html,
-        subtype="html"
+        content=content,
+        title="Добро пожаловать в CourseRate!"
     )
-
     return await send_email_with_retry(message)
 
 
 async def send_course_approved_email(email: str, course_title: str) -> bool:
     """Уведомление об одобрении курса"""
-    html = f"""
-    <html>
-        <body>
-            <h2>Ваш курс одобрен!</h2>
-            <p>Отличные новости!</p>
-            <p>Ваш курс "<strong>{course_title}</strong>" был одобрен модератором и теперь доступен на платформе.</p>
-            <p>Пользователи уже могут просматривать его и оставлять отзывы.</p>
-            <p>С уважением,<br>Команда CourseRate</p>
-        </body>
-    </html>
+    content = f"""
+        <p>Отличные новости!</p>
+        <p>Ваш курс "<strong>{course_title}</strong>" был одобрен модератором и теперь доступен на платформе.</p>
+        <p>Пользователи уже могут просматривать его и оставлять отзывы.</p>
     """
-
-    message = MessageSchema(
+    message = _create_email_message(
         subject=f"Курс '{course_title}' одобрен!",
         recipients=[email],
-        body=html,
-        subtype="html"
+        content=content,
+        title="Ваш курс одобрен!"
     )
-
     return await send_email_with_retry(message)
 
 
 async def send_new_review_notification(email: str, course_title: str, rating: float) -> bool:
     """Уведомление о новом отзыве на курс"""
-    html = f"""
-    <html>
-        <body>
-            <h2>Новый отзыв на ваш курс!</h2>
-            <p>На курс "<strong>{course_title}</strong>" был оставлен новый отзыв.</p>
-            <p>Оценка: <strong>{rating}/5</strong></p>
-            <p>Войдите на платформу, чтобы посмотреть детали.</p>
-            <p>С уважением,<br>Команда CourseRate</p>
-        </body>
-    </html>
+    content = f"""
+        <p>На курс "<strong>{course_title}</strong>" был оставлен новый отзыв.</p>
+        <p>Оценка: <strong>{rating}/5</strong></p>
+        <p>Войдите на платформу, чтобы посмотреть детали.</p>
     """
-
-    message = MessageSchema(
+    message = _create_email_message(
         subject=f"Новый отзыв на '{course_title}'",
         recipients=[email],
-        body=html,
-        subtype="html"
+        content=content,
+        title="Новый отзыв на ваш курс!"
     )
-
     return await send_email_with_retry(message)
 
 
 async def send_verification_email(email: str, verification_code: str) -> bool:
     """Отправить код верификации"""
-    html = f"""
-    <html>
-        <body>
-            <h2>Подтверждение email</h2>
-            <p>Ваш код подтверждения:</p>
-            <h1 style="color: #0ea5e9;">{verification_code}</h1>
-            <p>Введите этот код на сайте для подтверждения вашего email.</p>
-            <p>Код действителен 30 минут.</p>
-            <p>С уважением,<br>Команда CourseRate</p>
-        </body>
-    </html>
+    content = f"""
+        <p>Ваш код подтверждения:</p>
+        <h1 style="color: #0ea5e9; text-align: center;">{verification_code}</h1>
+        <p>Введите этот код на сайте для подтверждения вашего email.</p>
+        <p>Код действителен 30 минут.</p>
     """
-
-    message = MessageSchema(
+    message = _create_email_message(
         subject="Подтверждение email - CourseRate",
         recipients=[email],
-        body=html,
-        subtype="html"
+        content=content,
+        title="Подтверждение email"
     )
-
     return await send_email_with_retry(message)
 
 
 async def send_password_reset_email(email: str, reset_token: str) -> bool:
     """Отправить ссылку для сброса пароля"""
     reset_link = f"https://courserate.com/reset-password?token={reset_token}"
-
-    html = f"""
-    <html>
-        <body>
-            <h2>Сброс пароля</h2>
-            <p>Вы запросили сброс пароля.</p>
-            <p>Нажмите на кнопку ниже, чтобы сбросить пароль:</p>
+    content = f"""
+        <p>Вы запросили сброс пароля.</p>
+        <p>Нажмите на кнопку ниже, чтобы сбросить пароль:</p>
+        <p style="text-align: center;">
             <a href="{reset_link}" style="display: inline-block; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 6px;">
                 Сбросить пароль
             </a>
-            <p>Или скопируйте эту ссылку в браузер:</p>
-            <p>{reset_link}</p>
-            <p>Ссылка действительна 1 час.</p>
-            <p>Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.</p>
-            <p>С уважением,<br>Команда CourseRate</p>
-        </body>
-    </html>
+        </p>
+        <p>Или скопируйте эту ссылку в браузер:</p>
+        <p style="word-break: break-all;">{reset_link}</p>
+        <p>Ссылка действительна 1 час.</p>
+        <p><em>Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.</em></p>
     """
-
-    message = MessageSchema(
+    message = _create_email_message(
         subject="Сброс пароля - CourseRate",
         recipients=[email],
-        body=html,
-        subtype="html"
+        content=content,
+        title="Сброс пароля"
     )
-
     return await send_email_with_retry(message)
 
 
 async def send_admin_notification(
     subject: str,
     content: str,
-    recipients: List[str] = None
+    recipients: Optional[List[str]] = None
 ) -> bool:
     """Отправить уведомление админам"""
     if not recipients:
         recipients = [settings.FIRST_SUPERUSER_EMAIL]
 
-    html = f"""
-    <html>
-        <body>
-            <h2>Уведомление админа</h2>
-            {content}
-            <p>С уважением,<br>Система CourseRate</p>
-        </body>
-    </html>
-    """
-
-    message = MessageSchema(
+    message = _create_email_message(
         subject=f"[ADMIN] {subject}",
         recipients=recipients,
-        body=html,
-        subtype="html"
+        content=content,
+        title="Уведомление администратора"
     )
-
     return await send_email_with_retry(message)
