@@ -6,13 +6,14 @@ PERFORMANCE: Кэширование категорий
 """
 from typing import List
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from slugify import slugify
 from fastapi import HTTPException, status
 
 from app.models.category import Category, Subcategory
 from app.schemas.category import CategoryCreate, SubcategoryCreate
 from app.core.cache import cache_manager
-from app.utils.db_helpers import get_or_404, exists_or_400
+from app.utils.db_helpers import get_or_404
 
 
 class CategoryService:
@@ -81,18 +82,11 @@ class CategoryService:
             Созданная категория
 
         Raises:
-            HTTPException: 400 если slug уже существует
+            HTTPException: 409 если slug уже существует
+
+        SECURITY: Используем IntegrityError для предотвращения TOCTOU
         """
         slug = slugify(category_data.name)
-
-        # Проверка уникальности slug
-        exists_or_400(
-            db,
-            Category,
-            "slug",
-            slug,
-            "Category with this name already exists"
-        )
 
         # Создание категории
         new_category = Category(
@@ -102,9 +96,16 @@ class CategoryService:
             icon=category_data.icon
         )
 
-        db.add(new_category)
-        db.commit()
-        db.refresh(new_category)
+        try:
+            db.add(new_category)
+            db.commit()
+            db.refresh(new_category)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Category with this name already exists"
+            )
 
         # Инвалидация кэша
         CategoryService._invalidate_cache()
@@ -130,6 +131,9 @@ class CategoryService:
 
         Raises:
             HTTPException: 404 если категория не найдена
+            HTTPException: 409 если подкатегория уже существует
+
+        SECURITY: Используем IntegrityError для предотвращения TOCTOU
         """
         # Проверка существования категории
         category = get_or_404(db, Category, category_id, "Category not found")
@@ -143,9 +147,16 @@ class CategoryService:
             category_id=category_id
         )
 
-        db.add(new_subcategory)
-        db.commit()
-        db.refresh(new_subcategory)
+        try:
+            db.add(new_subcategory)
+            db.commit()
+            db.refresh(new_subcategory)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Subcategory with this name already exists"
+            )
 
         # Инвалидация кэша (т.к. добавилась подкатегория)
         CategoryService._invalidate_cache()
@@ -171,6 +182,9 @@ class CategoryService:
 
         Raises:
             HTTPException: 404 если не найдена
+            HTTPException: 409 если slug уже занят
+
+        SECURITY: Используем IntegrityError для предотвращения TOCTOU
         """
         category = get_or_404(db, Category, category_id, "Category not found")
 
@@ -180,8 +194,15 @@ class CategoryService:
         category.description = category_data.description
         category.icon = category_data.icon
 
-        db.commit()
-        db.refresh(category)
+        try:
+            db.commit()
+            db.refresh(category)
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Category with this name already exists"
+            )
 
         # Инвалидация кэша
         CategoryService._invalidate_cache()

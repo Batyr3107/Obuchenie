@@ -19,6 +19,7 @@ from telegram.ext import (
 # Настройки
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 API_URL = os.getenv("API_URL", "http://localhost:8000/api/v1")
+REQUEST_TIMEOUT = 10  # Таймаут для HTTP запросов в секундах
 
 # Logger
 logger = logging.getLogger(__name__)
@@ -84,7 +85,7 @@ async def search_courses(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def top_courses(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /top - топ курсы"""
     try:
-        response = requests.get(f"{API_URL}/courses?limit=10&min_rating=4.5")
+        response = requests.get(f"{API_URL}/courses?limit=10&min_rating=4.5", timeout=REQUEST_TIMEOUT)
         courses = response.json()
 
         if not courses:
@@ -111,7 +112,7 @@ async def top_courses(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /categories"""
     try:
-        response = requests.get(f"{API_URL}/categories")
+        response = requests.get(f"{API_URL}/categories", timeout=REQUEST_TIMEOUT)
         categories_list = response.json()
 
         message = "📁 **Категории курсов:**\n\n"
@@ -142,7 +143,7 @@ async def handle_search(update: Update, query: str):
     """Поиск курсов"""
     try:
         # Поиск через API
-        response = requests.get(f"{API_URL}/courses?search={query}&limit=5")
+        response = requests.get(f"{API_URL}/courses?search={query}&limit=5", timeout=REQUEST_TIMEOUT)
         courses = response.json()
 
         if not courses:
@@ -181,7 +182,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("cat_"):
         category_id = data.split("_")[1]
         try:
-            response = requests.get(f"{API_URL}/courses?category_id={category_id}&limit=10")
+            response = requests.get(f"{API_URL}/courses?category_id={category_id}&limit=10", timeout=REQUEST_TIMEOUT)
             courses = response.json()
 
             message = f"📚 **Курсы в категории:**\n\n"
@@ -212,7 +213,7 @@ async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "notify_special_offers": False
         }
 
-        response = requests.post(f"{API_URL}/telegram/subscribe", json=subscriber_data)
+        response = requests.post(f"{API_URL}/telegram/subscribe", json=subscriber_data, timeout=REQUEST_TIMEOUT)
 
         if response.status_code == 201:
             await update.message.reply_text(
@@ -238,7 +239,7 @@ async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         # Отправляем запрос на API для отписки
-        response = requests.post(f"{API_URL}/telegram/unsubscribe/{user_id}")
+        response = requests.post(f"{API_URL}/telegram/unsubscribe/{user_id}", timeout=REQUEST_TIMEOUT)
 
         if response.status_code == 200:
             await update.message.reply_text("❌ Вы отписались от уведомлений.")
