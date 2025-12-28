@@ -353,11 +353,11 @@ class ReviewService:
             if review.pros:
                 try:
                     review.pros = json.loads(review.pros)
-                except:
+                except (json.JSONDecodeError, TypeError, ValueError):
                     review.pros = []
             if review.cons:
                 try:
                     review.cons = json.loads(review.cons)
-                except:
+                except (json.JSONDecodeError, TypeError, ValueError):
                     review.cons = []
         return reviews
