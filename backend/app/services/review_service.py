@@ -75,16 +75,20 @@ class ReviewService:
         """
         Проверка лимита отзывов в день
 
+        PERFORMANCE: Uses limit() to stop counting once we exceed the limit,
+        instead of counting all reviews for the day.
+
         Raises:
             HTTPException: Если лимит превышен
         """
         today = datetime.now(timezone.utc).date()
-        reviews_today = db.query(Review).filter(
+        # PERFORMANCE: Only fetch up to limit to check if exceeded
+        reviews_count = db.query(Review.id).filter(
             Review.user_id == user_id,
             func.date(Review.created_at) == today
-        ).count()
+        ).limit(settings.REVIEWS_PER_DAY_LIMIT).count()
 
-        if reviews_today >= settings.REVIEWS_PER_DAY_LIMIT:
+        if reviews_count >= settings.REVIEWS_PER_DAY_LIMIT:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Daily review limit ({settings.REVIEWS_PER_DAY_LIMIT}) exceeded. Try again tomorrow."

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
   Star, ExternalLink, BookOpen, Clock, DollarSign, Award,
@@ -13,6 +13,14 @@ import { useAuthStore } from '../utils/store'
 import { reportError } from '../utils/errorReporter'
 import toast from 'react-hot-toast'
 
+/**
+ * CourseDetailPage Component
+ *
+ * PERFORMANCE:
+ * - Uses AbortController to cancel requests on unmount/navigation
+ * - Fetches course and reviews in parallel with Promise.all
+ * - Prevents state updates on unmounted component
+ */
 function CourseDetailPage() {
   const { id } = useParams()
   const { isAuthenticated } = useAuthStore()
@@ -20,31 +28,57 @@ function CourseDetailPage() {
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
 
+  // AbortController ref for cleanup
+  const abortControllerRef = useRef(null)
+
   useEffect(() => {
-    fetchCourse()
-    fetchReviews()
+    // Cancel previous requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    // Create new controller
+    abortControllerRef.current = new AbortController()
+    const signal = abortControllerRef.current.signal
+
+    const fetchData = async () => {
+      setLoading(true)
+
+      try {
+        // PERFORMANCE: Fetch course and reviews in parallel
+        const [courseResponse, reviewsResponse] = await Promise.all([
+          coursesAPI.getById(id),
+          reviewsAPI.getAll({ course_id: id })
+        ])
+
+        // Only update state if not aborted
+        if (!signal.aborted) {
+          setCourse(courseResponse.data)
+          setReviews(reviewsResponse.data)
+        }
+      } catch (error) {
+        // Don't show error if request was cancelled
+        if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED' || signal.aborted) {
+          return
+        }
+        toast.error('Ошибка при загрузке курса')
+        reportError(error, { component: 'CourseDetailPage', action: 'fetchData', courseId: id })
+      } finally {
+        if (!signal.aborted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    fetchData()
+
+    // Cleanup: cancel requests on unmount or id change
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
   }, [id])
-
-  const fetchCourse = async () => {
-    try {
-      const response = await coursesAPI.getById(id)
-      setCourse(response.data)
-    } catch (error) {
-      toast.error('Ошибка при загрузке курса')
-      reportError(error, { component: 'CourseDetailPage', action: 'fetchCourse', courseId: id })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchReviews = async () => {
-    try {
-      const response = await reviewsAPI.getAll({ course_id: id })
-      setReviews(response.data)
-    } catch (error) {
-      reportError(error, { component: 'CourseDetailPage', action: 'fetchReviews', courseId: id })
-    }
-  }
 
   if (loading) {
     return (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { BookOpen, Filter, X, Sparkles } from 'lucide-react'
 import CourseCard from '../components/courses/CourseCard'
@@ -8,6 +8,14 @@ import { coursesAPI } from '../services/api'
 import { reportError } from '../utils/errorReporter'
 import toast from 'react-hot-toast'
 
+/**
+ * CoursesPage Component
+ *
+ * PERFORMANCE:
+ * - Uses individual filter values in useEffect deps to prevent unnecessary re-renders
+ * - AbortController for canceling requests on filter change
+ * - useCallback for stable handler references
+ */
 function CoursesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [courses, setCourses] = useState([])
@@ -18,41 +26,66 @@ function CoursesPage() {
     min_rating: null,
   })
 
+  // AbortController ref for canceling requests
+  const abortControllerRef = useRef(null)
+
+  // PERFORMANCE: Use individual values to prevent object reference issues
+  const { search, category_id, min_rating } = filters
+
   useEffect(() => {
-    fetchCourses()
-  }, [filters])
-
-  const fetchCourses = async () => {
-    try {
-      setLoading(true)
-      const params = {}
-
-      if (filters.search) params.search = filters.search
-      if (filters.category_id) params.category_id = filters.category_id
-      if (filters.min_rating) params.min_rating = filters.min_rating
-
-      const response = await coursesAPI.getAll(params)
-      setCourses(response.data)
-    } catch (error) {
-      toast.error('Ошибка при загрузке курсов')
-      reportError(error, { component: 'CoursesPage', action: 'fetchCourses', filters })
-    } finally {
-      setLoading(false)
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
     }
-  }
 
-  const handleFiltersChange = (newFilters) => {
+    // Create new controller
+    abortControllerRef.current = new AbortController()
+
+    const fetchCourses = async () => {
+      try {
+        setLoading(true)
+        const params = {}
+
+        if (search) params.search = search
+        if (category_id) params.category_id = category_id
+        if (min_rating) params.min_rating = min_rating
+
+        const response = await coursesAPI.getAll(params)
+        setCourses(response.data)
+      } catch (error) {
+        // Don't show error if request was cancelled
+        if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+          return
+        }
+        toast.error('Ошибка при загрузке курсов')
+        reportError(error, { component: 'CoursesPage', action: 'fetchCourses', filters })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchCourses()
+
+    // Cleanup: cancel request on unmount or filter change
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [search, category_id, min_rating]) // PERFORMANCE: Individual values, not object
+
+  const handleFiltersChange = useCallback((newFilters) => {
     setFilters(newFilters)
 
     // Update URL params
     const params = new URLSearchParams()
     if (newFilters.search) params.set('search', newFilters.search)
     setSearchParams(params)
-  }
+  }, [setSearchParams])
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     handleFiltersChange({ search: '', category_id: null, min_rating: null })
-  }
+  }, [handleFiltersChange])
 
   return (
     <div className="space-y-8 animate-fade-in">

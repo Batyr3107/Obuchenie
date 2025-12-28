@@ -5,7 +5,7 @@ ARCHITECTURE: Бизнес-логика для работы с категори�
 PERFORMANCE: Кэширование категорий
 """
 from typing import List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from slugify import slugify
 from fastapi import HTTPException, status
 
@@ -39,10 +39,12 @@ class CategoryService:
         if cached is not None:
             return cached
 
-        # Получение из БД
-        categories = db.query(Category).all()
+        # PERFORMANCE: joinedload prevents N+1 when accessing subcategories
+        categories = db.query(Category).options(
+            joinedload(Category.subcategories)
+        ).all()
 
-        # Сохранение в кэш
+        # Сохранение в кэш (as dicts for proper serialization)
         cache_manager.set(
             CategoryService.CACHE_KEY_ALL,
             categories,

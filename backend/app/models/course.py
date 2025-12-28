@@ -109,6 +109,8 @@ class Course(Base):
     __table_args__ = (
         Index('ix_course_category_status', 'category_id', 'status'),  # Для фильтрации по категории и статусу
         Index('ix_course_status_created', 'status', 'created_at'),    # Для сортировки по дате в рамках статуса
+        Index('ix_course_avg_rating', 'avg_rating'),                  # Для фильтрации и сортировки по рейтингу
+        Index('ix_course_status_rating', 'status', 'avg_rating'),     # Для получения курсов по статусу с сортировкой по рейтингу
     )
 
     # Relationships

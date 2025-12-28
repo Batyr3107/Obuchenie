@@ -1,7 +1,14 @@
+import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { Star, Users, Award, Sparkles, TrendingUp } from 'lucide-react'
 
-function CourseCard({ course, isPremium = false, isTop = false }) {
+/**
+ * CourseCard Component
+ *
+ * PERFORMANCE: Wrapped with React.memo to prevent unnecessary re-renders
+ * when parent component re-renders but course data hasn't changed.
+ */
+const CourseCard = memo(function CourseCard({ course, isPremium = false, isTop = false }) {
   const cardClass = isTop ? 'card-top' : isPremium ? 'card-premium' : 'card'
 
   return (
@@ -105,6 +112,6 @@ function CourseCard({ course, isPremium = false, isTop = false }) {
       </Link>
     </div>
   )
-}
+})
 
 export default CourseCard

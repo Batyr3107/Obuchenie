@@ -64,7 +64,8 @@ class CacheManager:
         """
         Кастомный JSON сериализатор для сложных объектов
 
-        Поддерживает datetime, date, Decimal, set
+        PERFORMANCE: Handles SQLAlchemy objects by converting to dict
+        Поддерживает datetime, date, Decimal, set, SQLAlchemy models
         """
         if isinstance(obj, (datetime, date)):
             return obj.isoformat()
@@ -74,6 +75,12 @@ class CacheManager:
             return list(obj)
         if isinstance(obj, bytes):
             return obj.decode('utf-8')
+        # Handle SQLAlchemy model objects
+        if hasattr(obj, '__table__'):
+            return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
+        # Handle enum objects
+        if hasattr(obj, 'value'):
+            return obj.value
         raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
     def get(self, key: str) -> Optional[Any]:
@@ -144,6 +151,10 @@ class CacheManager:
         """
         Удаление ключей по шаблону
 
+        PERFORMANCE: Uses SCAN instead of KEYS to avoid blocking Redis.
+        KEYS is O(N) and blocks the entire Redis instance.
+        SCAN iterates incrementally without blocking.
+
         Args:
             pattern: Шаблон ключа (например, "user:*")
 
@@ -154,10 +165,20 @@ class CacheManager:
             return 0
 
         try:
-            keys = self.redis_client.keys(f"cache:{pattern}")
-            if keys:
-                return self.redis_client.delete(*keys)
-            return 0
+            deleted = 0
+            cursor = 0
+            # PERFORMANCE: Use SCAN instead of KEYS to avoid blocking Redis
+            while True:
+                cursor, keys = self.redis_client.scan(
+                    cursor=cursor,
+                    match=f"cache:{pattern}",
+                    count=100  # Process 100 keys per iteration
+                )
+                if keys:
+                    deleted += self.redis_client.delete(*keys)
+                if cursor == 0:
+                    break
+            return deleted
         except Exception as e:
             logger.error(f"Cache clear pattern error for {pattern}: {e}")
             return 0

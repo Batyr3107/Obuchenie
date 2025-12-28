@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { authAPI } from '../services/api'
+import { authAPI, categoriesAPI } from '../services/api'
 
 /**
  * Auth Store
@@ -104,4 +104,58 @@ export const useThemeStore = create((set) => ({
     document.documentElement.classList.toggle('dark', theme === 'dark')
     return { theme }
   }),
+}))
+
+/**
+ * Categories Store
+ *
+ * PERFORMANCE: Caches categories with 5-minute TTL to avoid
+ * refetching on every component mount. Categories rarely change,
+ * so caching significantly reduces API calls.
+ */
+const CATEGORIES_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+export const useCategoriesStore = create((set, get) => ({
+  categories: [],
+  lastFetched: null,
+  isLoading: false,
+  error: null,
+
+  fetchCategories: async () => {
+    const state = get()
+    const now = Date.now()
+
+    // Return cached data if still valid
+    if (state.lastFetched && now - state.lastFetched < CATEGORIES_CACHE_TTL) {
+      return state.categories
+    }
+
+    // Prevent duplicate requests
+    if (state.isLoading) {
+      return state.categories
+    }
+
+    set({ isLoading: true, error: null })
+
+    try {
+      const response = await categoriesAPI.getAll()
+      set({
+        categories: response.data,
+        lastFetched: now,
+        isLoading: false
+      })
+      return response.data
+    } catch (error) {
+      set({
+        error: error.message,
+        isLoading: false
+      })
+      return state.categories
+    }
+  },
+
+  // Force refresh categories (e.g., after admin creates new category)
+  invalidateCategories: () => {
+    set({ lastFetched: null })
+  }
 }))

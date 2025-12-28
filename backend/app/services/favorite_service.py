@@ -136,6 +136,8 @@ class FavoriteService:
         """
         Проверка, находится ли курс в избранном
 
+        PERFORMANCE: Uses exists() instead of first() to avoid fetching full row
+
         Args:
             db: Database session
             user_id: ID пользователя
@@ -144,9 +146,9 @@ class FavoriteService:
         Returns:
             True если в избранном, False иначе
         """
-        favorite = db.query(Favorite).filter(
+        from sqlalchemy import exists
+
+        return db.query(exists().where(
             Favorite.user_id == user_id,
             Favorite.course_id == course_id
-        ).first()
-
-        return favorite is not None
+        )).scalar()

@@ -1,41 +1,74 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, memo, useRef } from 'react'
 import { Search } from 'lucide-react'
-import { categoriesAPI } from '../../services/api'
+import { useCategoriesStore } from '../../utils/store'
 import { reportError } from '../../utils/errorReporter'
 
-function CourseFilters({ filters, onFiltersChange }) {
-  const [categories, setCategories] = useState([])
+/**
+ * CourseFilters Component
+ *
+ * PERFORMANCE:
+ * - Wrapped with React.memo to prevent unnecessary re-renders
+ * - Uses debounced search to reduce API calls (300ms delay)
+ * - Categories fetched from Zustand store (cached)
+ * - useCallback for stable handler references
+ */
+const CourseFilters = memo(function CourseFilters({ filters, onFiltersChange }) {
+  const { categories, fetchCategories } = useCategoriesStore()
+  const [localSearch, setLocalSearch] = useState(filters.search)
+  const debounceTimer = useRef(null)
 
   useEffect(() => {
     fetchCategories()
+  }, [fetchCategories])
+
+  // Sync local search with external filter changes
+  useEffect(() => {
+    setLocalSearch(filters.search)
+  }, [filters.search])
+
+  // PERFORMANCE: Debounced search handler - waits 300ms before triggering API call
+  const handleSearchChange = useCallback((e) => {
+    const value = e.target.value
+    setLocalSearch(value)
+
+    // Clear existing timer
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current)
+    }
+
+    // Set new timer for debounced update
+    debounceTimer.current = setTimeout(() => {
+      onFiltersChange({ ...filters, search: value })
+    }, 300)
+  }, [filters, onFiltersChange])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current)
+      }
+    }
   }, [])
 
-  const fetchCategories = async () => {
-    try {
-      const response = await categoriesAPI.getAll()
-      setCategories(response.data)
-    } catch (error) {
-      reportError(error, { component: 'CourseFilters', action: 'fetchCategories' })
-    }
-  }
-
-  const handleSearchChange = (e) => {
-    onFiltersChange({ ...filters, search: e.target.value })
-  }
-
-  const handleCategoryChange = (e) => {
+  const handleCategoryChange = useCallback((e) => {
     onFiltersChange({
       ...filters,
       category_id: e.target.value ? parseInt(e.target.value) : null
     })
-  }
+  }, [filters, onFiltersChange])
 
-  const handleRatingChange = (e) => {
+  const handleRatingChange = useCallback((e) => {
     onFiltersChange({
       ...filters,
       min_rating: e.target.value ? parseFloat(e.target.value) : null
     })
-  }
+  }, [filters, onFiltersChange])
+
+  const handleReset = useCallback(() => {
+    setLocalSearch('')
+    onFiltersChange({ search: '', category_id: null, min_rating: null })
+  }, [onFiltersChange])
 
   return (
     <div className="card mb-6">
@@ -49,7 +82,7 @@ function CourseFilters({ filters, onFiltersChange }) {
           <input
             type="text"
             placeholder="Название курса..."
-            value={filters.search}
+            value={localSearch}
             onChange={handleSearchChange}
             className="input pl-10"
           />
@@ -91,13 +124,13 @@ function CourseFilters({ filters, onFiltersChange }) {
 
       {/* Reset */}
       <button
-        onClick={() => onFiltersChange({ search: '', category_id: null, min_rating: null })}
+        onClick={handleReset}
         className="btn btn-secondary w-full"
       >
         Сбросить фильтры
       </button>
     </div>
   )
-}
+})
 
 export default CourseFilters
