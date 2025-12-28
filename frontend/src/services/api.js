@@ -7,6 +7,8 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Best Practice: Set timeout to prevent hanging requests
+  timeout: 30000, // 30 seconds
 })
 
 // Interceptor для добавления токена

@@ -9,25 +9,40 @@ from fastapi import Request, HTTPException
 
 def get_remote_address_or_user(request: Request) -> str:
     """
-    Получить идентификатор для rate limiting
-    Использует IP адрес или user_id если авторизован
+    Получить идентификатор для rate limiting.
+    Использует user_id из JWT если авторизован, иначе IP адрес.
+
+    Best Practice: Per-user rate limiting for authenticated requests
+    prevents one user from exhausting limits for others.
     """
     # Попробовать получить user_id из токена
     auth_header = request.headers.get("Authorization")
-    if auth_header:
+    if auth_header and auth_header.startswith("Bearer "):
         try:
-            # Можно извлечь user_id из JWT токена
-            # Для простоты используем IP
-            pass
-        except:
+            from jose import jwt, JWTError
+            from app.core.config import settings
+
+            token = auth_header.split(" ")[1]
+            payload = jwt.decode(
+                token,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM]
+            )
+            user_id = payload.get("sub")
+            if user_id:
+                return f"user:{user_id}"
+        except (JWTError, IndexError, ValueError):
+            # Invalid token - fall back to IP-based limiting
             pass
 
     # Fallback на IP адрес
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
-        return forwarded.split(",")[0]
+        # Best Practice: Take first IP from X-Forwarded-For chain
+        return f"ip:{forwarded.split(',')[0].strip()}"
 
-    return request.client.host if request.client else "unknown"
+    client_ip = request.client.host if request.client else "unknown"
+    return f"ip:{client_ip}"
 
 
 # Создание limiter с динамическим storage

@@ -144,17 +144,18 @@ async def root():
 async def health_check():
     """
     Health check endpoint
-    Проверяет состояние приложения и подключения к БД
+    Проверяет состояние приложения и подключения к БД и Redis
 
-    SECURITY: Uses context manager to prevent connection leaks on exceptions.
+    Best Practice: Check all critical dependencies in health endpoint.
     """
     health_status = {
         "status": "healthy",
         "version": settings.VERSION,
-        "database": "unknown"
+        "database": "unknown",
+        "cache": "unknown"
     }
 
-    # Проверка подключения к БД (with context manager to prevent leaks)
+    # Проверка подключения к БД
     db = None
     try:
         db = SessionLocal()
@@ -168,6 +169,25 @@ async def health_check():
     finally:
         if db is not None:
             db.close()
+
+    # Проверка подключения к Redis (Best Practice: check all dependencies)
+    if settings.ENABLE_CACHE:
+        try:
+            import redis
+            redis_client = redis.Redis(
+                host=settings.REDIS_HOST,
+                port=settings.REDIS_PORT,
+                socket_connect_timeout=2
+            )
+            redis_client.ping()
+            health_status["cache"] = "connected"
+            redis_client.close()
+        except Exception as e:
+            logger.warning(f"Redis health check failed: {str(e)}")
+            health_status["cache"] = "disconnected"
+            # Redis failure is non-critical - app works without cache
+    else:
+        health_status["cache"] = "disabled"
 
     return health_status
 
