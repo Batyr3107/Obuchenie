@@ -5,6 +5,7 @@ SECURITY NOTE: Используется JSON сериализация вмест
 предотвращения уязвимостей arbitrary code execution при десериализации.
 """
 import json
+import enum
 from typing import Optional, Any, Callable
 from functools import wraps
 import hashlib
@@ -65,7 +66,7 @@ class CacheManager:
         Кастомный JSON сериализатор для сложных объектов
 
         PERFORMANCE: Handles SQLAlchemy objects by converting to dict
-        Поддерживает datetime, date, Decimal, set, SQLAlchemy models
+        Поддерживает datetime, date, Decimal, set, SQLAlchemy models, Enum
         """
         if isinstance(obj, (datetime, date)):
             return obj.isoformat()
@@ -75,12 +76,24 @@ class CacheManager:
             return list(obj)
         if isinstance(obj, bytes):
             return obj.decode('utf-8')
+        # Handle Python Enum objects (including SQLAlchemy enums)
+        if isinstance(obj, enum.Enum):
+            return obj.value
         # Handle SQLAlchemy model objects
         if hasattr(obj, '__table__'):
-            return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
-        # Handle enum objects
-        if hasattr(obj, 'value'):
-            return obj.value
+            result = {}
+            for c in obj.__table__.columns:
+                value = getattr(obj, c.name)
+                # Recursively serialize column values
+                if isinstance(value, (datetime, date)):
+                    result[c.name] = value.isoformat()
+                elif isinstance(value, enum.Enum):
+                    result[c.name] = value.value
+                elif isinstance(value, Decimal):
+                    result[c.name] = float(value)
+                else:
+                    result[c.name] = value
+            return result
         raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
     def get(self, key: str) -> Optional[Any]:

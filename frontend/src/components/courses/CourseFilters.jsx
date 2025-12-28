@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, memo, useRef } from 'react'
 import { Search } from 'lucide-react'
 import { useCategoriesStore } from '../../utils/store'
-import { reportError } from '../../utils/errorReporter'
 
 /**
  * CourseFilters Component

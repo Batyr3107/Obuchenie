@@ -75,20 +75,21 @@ class ReviewService:
         """
         Проверка лимита отзывов в день
 
-        PERFORMANCE: Uses limit() to stop counting once we exceed the limit,
-        instead of counting all reviews for the day.
+        PERFORMANCE: Fetches only IDs up to limit instead of counting all.
+        Note: .count() ignores .limit() in SQLAlchemy, so we use len() on limited results.
 
         Raises:
             HTTPException: Если лимит превышен
         """
         today = datetime.now(timezone.utc).date()
-        # PERFORMANCE: Only fetch up to limit to check if exceeded
-        reviews_count = db.query(Review.id).filter(
+        # PERFORMANCE: Only fetch IDs up to limit, then check length
+        # Note: .count() creates separate COUNT(*) query ignoring limit
+        reviews = db.query(Review.id).filter(
             Review.user_id == user_id,
             func.date(Review.created_at) == today
-        ).limit(settings.REVIEWS_PER_DAY_LIMIT).count()
+        ).limit(settings.REVIEWS_PER_DAY_LIMIT).all()
 
-        if reviews_count >= settings.REVIEWS_PER_DAY_LIMIT:
+        if len(reviews) >= settings.REVIEWS_PER_DAY_LIMIT:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Daily review limit ({settings.REVIEWS_PER_DAY_LIMIT}) exceeded. Try again tomorrow."

@@ -50,7 +50,8 @@ function CoursesPage() {
         if (category_id) params.category_id = category_id
         if (min_rating) params.min_rating = min_rating
 
-        const response = await coursesAPI.getAll(params)
+        // Pass abort signal for request cancellation
+        const response = await coursesAPI.getAll(params, { signal: abortControllerRef.current.signal })
         setCourses(response.data)
       } catch (error) {
         // Don't show error if request was cancelled
@@ -58,7 +59,12 @@ function CoursesPage() {
           return
         }
         toast.error('Ошибка при загрузке курсов')
-        reportError(error, { component: 'CoursesPage', action: 'fetchCourses', filters })
+        // Use current filter values to avoid stale closure
+        reportError(error, {
+          component: 'CoursesPage',
+          action: 'fetchCourses',
+          filters: { search, category_id, min_rating }
+        })
       } finally {
         setLoading(false)
       }

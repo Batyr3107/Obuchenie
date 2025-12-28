@@ -45,10 +45,10 @@ function CourseDetailPage() {
       setLoading(true)
 
       try {
-        // PERFORMANCE: Fetch course and reviews in parallel
+        // PERFORMANCE: Fetch course and reviews in parallel with abort support
         const [courseResponse, reviewsResponse] = await Promise.all([
-          coursesAPI.getById(id),
-          reviewsAPI.getAll({ course_id: id })
+          coursesAPI.getById(id, { signal }),
+          reviewsAPI.getAll({ course_id: id }, { signal })
         ])
 
         // Only update state if not aborted

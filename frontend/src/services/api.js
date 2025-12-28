@@ -49,9 +49,10 @@ export const authAPI = {
 }
 
 // Courses API
+// Note: options parameter allows passing AbortController signal for request cancellation
 export const coursesAPI = {
-  getAll: (params) => api.get('/courses', { params }),
-  getById: (id) => api.get(`/courses/${id}`),
+  getAll: (params, options = {}) => api.get('/courses', { params, ...options }),
+  getById: (id, options = {}) => api.get(`/courses/${id}`, options),
   create: (data) => api.post('/courses', data),
   update: (id, data) => api.put(`/courses/${id}`, data),
   delete: (id) => api.delete(`/courses/${id}`),
@@ -60,7 +61,7 @@ export const coursesAPI = {
 
 // Reviews API
 export const reviewsAPI = {
-  getAll: (params) => api.get('/reviews', { params }),
+  getAll: (params, options = {}) => api.get('/reviews', { params, ...options }),
   create: (data) => api.post('/reviews', data),
   update: (id, data) => api.put(`/reviews/${id}`, data),
   delete: (id) => api.delete(`/reviews/${id}`),

@@ -146,9 +146,11 @@ class FavoriteService:
         Returns:
             True если в избранном, False иначе
         """
-        from sqlalchemy import exists
+        from sqlalchemy import exists, and_
 
         return db.query(exists().where(
-            Favorite.user_id == user_id,
-            Favorite.course_id == course_id
+            and_(
+                Favorite.user_id == user_id,
+                Favorite.course_id == course_id
+            )
         )).scalar()
