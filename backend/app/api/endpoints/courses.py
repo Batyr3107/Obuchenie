@@ -151,11 +151,11 @@ async def get_course_reviews(
     if sort == "recent":
         query = query.order_by(Review.created_at.desc())
     elif sort == "helpful":
-        query = query.order_by(Review.helpful_votes.desc())
+        query = query.order_by(Review.helpful_count.desc())
     elif sort == "rating_high":
-        query = query.order_by(Review.rating.desc())
+        query = query.order_by(Review.overall_rating.desc())
     elif sort == "rating_low":
-        query = query.order_by(Review.rating.asc())
+        query = query.order_by(Review.overall_rating.asc())
 
     reviews = query.offset(skip).limit(limit).all()
 
