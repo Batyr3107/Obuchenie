@@ -1,26 +1,43 @@
 """
-Admin Service
+Admin Service (Facade)
 
-ARCHITECTURE: Бизнес-логика для административных операций
-DRY: Централизация логики модерации и управления
+SRP: Этот модуль теперь служит фасадом для обратной совместимости.
+ISP: Реальная логика разделена по сервисам:
+- CourseModeratorService - модерация курсов
+- UserManagementService - управление пользователями
+- ReviewModeratorService - модерация отзывов
+
+Импортируйте напрямую из подсервисов для новых проектов.
 """
 from typing import List, Optional
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
-from datetime import datetime, timezone
+from sqlalchemy.orm import Session
 
-from app.models.course import Course, CourseStatus
+from app.models.course import Course
 from app.models.user import User, UserRole
-from app.models.review import Review
-from app.models.report import Report, ReportStatus
-from app.utils.db_helpers import get_or_404
-from app.services.course_service import escape_like_pattern
+
+# Import from specialized services
+from app.services.course_moderator_service import CourseModeratorService
+from app.services.user_management_service import UserManagementService
+from app.services.review_moderator_service import ReviewModeratorService
 
 
 class AdminService:
-    """Сервис для административных операций"""
+    """
+    Facade для административных операций.
+
+    SOLID:
+    - SRP: Делегирует специализированным сервисам
+    - ISP: Клиенты могут использовать только нужные сервисы напрямую
+    - DIP: Не зависит от конкретных реализаций
+
+    Для новых проектов рекомендуется использовать сервисы напрямую:
+    - CourseModeratorService
+    - UserManagementService
+    - ReviewModeratorService
+    """
 
     # ============ МОДЕРАЦИЯ КУРСОВ ============
+    # Делегирует CourseModeratorService
 
     @staticmethod
     async def get_pending_courses(
@@ -28,68 +45,21 @@ class AdminService:
         skip: int = 0,
         limit: int = 20
     ) -> List[Course]:
-        """
-        Получение курсов на модерации
-
-        Args:
-            db: Database session
-            skip: Количество пропускаемых записей
-            limit: Максимальное количество записей
-
-        Returns:
-            Список курсов на модерации
-        """
-        courses = db.query(Course).filter(
-            Course.status == CourseStatus.PENDING
-        ).order_by(Course.created_at.desc()).offset(skip).limit(limit).all()
-
-        return courses
+        """Получение курсов на модерации"""
+        return await CourseModeratorService.get_pending_courses(db, skip, limit)
 
     @staticmethod
     async def approve_course(db: Session, course_id: int) -> Course:
-        """
-        Одобрение курса
-
-        Args:
-            db: Database session
-            course_id: ID курса
-
-        Returns:
-            Одобренный курс
-
-        Raises:
-            HTTPException: 404 если курс не найден
-        """
-        course = get_or_404(db, Course, course_id, "Course not found")
-        course.status = CourseStatus.APPROVED
-        db.commit()
-        db.refresh(course)
-
-        return course
+        """Одобрение курса"""
+        return await CourseModeratorService.approve_course(db, course_id)
 
     @staticmethod
     async def reject_course(db: Session, course_id: int) -> Course:
-        """
-        Отклонение курса
-
-        Args:
-            db: Database session
-            course_id: ID курса
-
-        Returns:
-            Отклоненный курс
-
-        Raises:
-            HTTPException: 404 если курс не найден
-        """
-        course = get_or_404(db, Course, course_id, "Course not found")
-        course.status = CourseStatus.REJECTED
-        db.commit()
-        db.refresh(course)
-
-        return course
+        """Отклонение курса"""
+        return await CourseModeratorService.reject_course(db, course_id)
 
     # ============ УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ============
+    # Делегирует UserManagementService
 
     @staticmethod
     async def get_users(
@@ -99,110 +69,26 @@ class AdminService:
         search: Optional[str] = None,
         role: Optional[UserRole] = None
     ) -> List[User]:
-        """
-        Получение списка пользователей с фильтрацией
-
-        Args:
-            db: Database session
-            skip: Количество пропускаемых записей
-            limit: Максимальное количество записей
-            search: Поисковый запрос (email или имя)
-            role: Фильтр по роли
-
-        Returns:
-            Список пользователей
-        """
-        query = db.query(User)
-
-        if search:
-            # SECURITY: Escape LIKE wildcards to prevent injection
-            safe_search = escape_like_pattern(search)
-            query = query.filter(
-                (User.email.ilike(f"%{safe_search}%", escape="\\")) |
-                (User.full_name.ilike(f"%{safe_search}%", escape="\\"))
-            )
-
-        if role:
-            query = query.filter(User.role == role)
-
-        users = query.order_by(User.created_at.desc()).offset(skip).limit(limit).all()
-        return users
+        """Получение списка пользователей с фильтрацией"""
+        return await UserManagementService.get_users(db, skip, limit, search, role)
 
     @staticmethod
     async def block_user(db: Session, user_id: int) -> dict:
-        """
-        Блокировка пользователя
-
-        Args:
-            db: Database session
-            user_id: ID пользователя
-
-        Returns:
-            Сообщение об успехе
-
-        Raises:
-            HTTPException: 404 если пользователь не найден
-            HTTPException: 403 если попытка заблокировать админа
-        """
-        from fastapi import HTTPException, status
-
-        user = get_or_404(db, User, user_id, "User not found")
-
-        if user.role == UserRole.ADMIN:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Cannot block admin"
-            )
-
-        user.is_blocked = True
-        db.commit()
-
-        return {"message": "User blocked successfully"}
+        """Блокировка пользователя"""
+        return await UserManagementService.block_user(db, user_id)
 
     @staticmethod
     async def unblock_user(db: Session, user_id: int) -> dict:
-        """
-        Разблокировка пользователя
-
-        Args:
-            db: Database session
-            user_id: ID пользователя
-
-        Returns:
-            Сообщение об успехе
-
-        Raises:
-            HTTPException: 404 если пользователь не найден
-        """
-        user = get_or_404(db, User, user_id, "User not found")
-        user.is_blocked = False
-        db.commit()
-
-        return {"message": "User unblocked successfully"}
+        """Разблокировка пользователя"""
+        return await UserManagementService.unblock_user(db, user_id)
 
     @staticmethod
     async def change_user_role(db: Session, user_id: int, new_role: UserRole) -> dict:
-        """
-        Изменение роли пользователя
-
-        Args:
-            db: Database session
-            user_id: ID пользователя
-            new_role: Новая роль
-
-        Returns:
-            Сообщение об успехе
-
-        Raises:
-            HTTPException: 404 если пользователь не найден
-        """
-        user = get_or_404(db, User, user_id, "User not found")
-        user.role = new_role
-        db.commit()
-
-        return {"message": f"User role changed to {new_role}"}
+        """Изменение роли пользователя"""
+        return await UserManagementService.change_user_role(db, user_id, new_role)
 
     # ============ МОДЕРАЦИЯ ОТЗЫВОВ ============
+    # Делегирует ReviewModeratorService
 
     @staticmethod
     async def get_reported_reviews(
@@ -210,89 +96,15 @@ class AdminService:
         skip: int = 0,
         limit: int = 20
     ) -> List[dict]:
-        """
-        Получение отзывов с жалобами
-
-        PERFORMANCE: Использует joinedload для предотвращения N+1 queries
-
-        Args:
-            db: Database session
-            skip: Количество пропускаемых записей
-            limit: Максимальное количество записей
-
-        Returns:
-            Список отзывов с жалобами
-        """
-        reports = db.query(Report).options(
-            joinedload(Report.review).joinedload(Review.user),
-            joinedload(Report.review).joinedload(Review.course),
-            joinedload(Report.user)
-        ).filter(
-            Report.status == ReportStatus.PENDING
-        ).order_by(Report.created_at.desc()).offset(skip).limit(limit).all()
-
-        # Группировка по отзывам
-        review_reports = {}
-        for report in reports:
-            if report.review_id not in review_reports:
-                review_reports[report.review_id] = {
-                    "review": report.review,
-                    "reports": []
-                }
-            review_reports[report.review_id]["reports"].append(report)
-
-        return list(review_reports.values())
+        """Получение отзывов с жалобами"""
+        return await ReviewModeratorService.get_reported_reviews(db, skip, limit)
 
     @staticmethod
     async def block_review(db: Session, review_id: int) -> dict:
-        """
-        Блокировка отзыва
-
-        TRANSACTIONAL: Атомарная операция с обновлением всех связанных жалоб
-
-        Args:
-            db: Database session
-            review_id: ID отзыва
-
-        Returns:
-            Сообщение об успехе
-
-        Raises:
-            HTTPException: 404 если отзыв не найден
-        """
-        review = get_or_404(db, Review, review_id, "Review not found")
-
-        review.is_blocked = True
-        review.is_approved = False
-
-        # Обновить статус всех жалоб на этот отзыв
-        db.query(Report).filter(Report.review_id == review_id).update({
-            "status": ReportStatus.RESOLVED,
-            "resolved_at": datetime.now(timezone.utc)
-        })
-
-        db.commit()
-
-        return {"message": "Review blocked successfully"}
+        """Блокировка отзыва"""
+        return await ReviewModeratorService.block_review(db, review_id)
 
     @staticmethod
     async def resolve_report(db: Session, report_id: int) -> dict:
-        """
-        Отклонение жалобы (отзыв нормальный)
-
-        Args:
-            db: Database session
-            report_id: ID жалобы
-
-        Returns:
-            Сообщение об успехе
-
-        Raises:
-            HTTPException: 404 если жалоба не найдена
-        """
-        report = get_or_404(db, Report, report_id, "Report not found")
-        report.status = ReportStatus.REJECTED
-        report.resolved_at = datetime.now(timezone.utc)
-        db.commit()
-
-        return {"message": "Report rejected"}
+        """Отклонение жалобы"""
+        return await ReviewModeratorService.resolve_report(db, report_id)

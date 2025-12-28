@@ -10,6 +10,7 @@ from app.schemas.review import ReviewResponse
 from app.api.dependencies.auth import get_current_active_user, get_current_admin
 from app.services.course_service import CourseService
 from app.utils.json_helpers import batch_parse_json_fields
+from app.utils.sorting import REVIEW_SORT_STRATEGIES, apply_sort
 
 router = APIRouter()
 
@@ -120,7 +121,7 @@ async def get_course_reviews(
     course_id: int,
     skip: int = Query(0, ge=0, description="Number of reviews to skip"),
     limit: int = Query(10, ge=1, le=50, description="Max reviews to return"),
-    sort: str = Query("recent", regex="^(recent|helpful|rating_high|rating_low)$"),
+    sort: str = Query("recent", regex="^(recent|oldest|helpful|rating_high|rating_low)$"),
     db: Session = Depends(get_db)
 ):
     """
@@ -129,11 +130,14 @@ async def get_course_reviews(
     PERFORMANCE: Returns paginated reviews instead of loading all reviews.
     Use this instead of loading reviews from course detail endpoint.
 
+    OCP: Sorting is extensible via REVIEW_SORT_STRATEGIES in sorting.py.
+    Add new sort options there without modifying this endpoint.
+
     Args:
         course_id: ID курса
         skip: Number of reviews to skip (for pagination)
         limit: Max reviews to return (default 10, max 50)
-        sort: Sort order - recent, helpful, rating_high, rating_low
+        sort: Sort order - recent, oldest, helpful, rating_high, rating_low
 
     Returns:
         List of paginated reviews
@@ -147,15 +151,8 @@ async def get_course_reviews(
         Review.is_approved == True
     )
 
-    # Apply sorting
-    if sort == "recent":
-        query = query.order_by(Review.created_at.desc())
-    elif sort == "helpful":
-        query = query.order_by(Review.helpful_count.desc())
-    elif sort == "rating_high":
-        query = query.order_by(Review.overall_rating.desc())
-    elif sort == "rating_low":
-        query = query.order_by(Review.overall_rating.asc())
+    # OCP: Apply sorting via strategy pattern
+    query = apply_sort(query, sort, REVIEW_SORT_STRATEGIES)
 
     reviews = query.offset(skip).limit(limit).all()
 
