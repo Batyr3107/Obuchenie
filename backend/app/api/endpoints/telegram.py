@@ -1,14 +1,19 @@
 """
 API endpoints для Telegram бота
+
+SECURITY: Non-admin endpoints require X-Telegram-Bot-Secret header
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timezone
+import secrets
 
 from app.api.dependencies.auth import get_current_admin
 from app.db.base import get_db
+from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.models.telegram_subscriber import TelegramSubscriber
 from app.models.user import User
 from app.schemas.telegram_subscriber import (
@@ -20,10 +25,40 @@ from app.schemas.telegram_subscriber import (
 router = APIRouter(prefix="/telegram", tags=["telegram"])
 
 
+async def verify_telegram_api_key(
+    x_telegram_bot_secret: Optional[str] = Header(None, alias="X-Telegram-Bot-Secret")
+) -> None:
+    """
+    Verify Telegram bot API secret.
+
+    SECURITY: Prevents unauthorized access to Telegram subscriber endpoints.
+    The bot must send X-Telegram-Bot-Secret header with requests.
+    """
+    if not settings.TELEGRAM_API_SECRET:
+        # If no secret configured, allow requests (development mode)
+        return
+
+    if not x_telegram_bot_secret:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing X-Telegram-Bot-Secret header"
+        )
+
+    # Use constant-time comparison to prevent timing attacks
+    if not secrets.compare_digest(x_telegram_bot_secret, settings.TELEGRAM_API_SECRET):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API secret"
+        )
+
+
 @router.post("/subscribe", response_model=TelegramSubscriberResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("100/minute")  # Rate limit bot API calls
 async def subscribe_telegram(
+    request: Request,
     subscriber_data: TelegramSubscriberCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_telegram_api_key)
 ):
     """
     Подписаться на уведомления от Telegram бота
@@ -76,9 +111,12 @@ async def subscribe_telegram(
 
 
 @router.post("/unsubscribe/{telegram_user_id}", status_code=status.HTTP_200_OK)
+@limiter.limit("100/minute")  # Rate limit bot API calls
 async def unsubscribe_telegram(
+    request: Request,
     telegram_user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_telegram_api_key)
 ):
     """
     Отписаться от уведомлений Telegram бота
@@ -103,7 +141,8 @@ async def unsubscribe_telegram(
 @router.get("/subscriber/{telegram_user_id}", response_model=TelegramSubscriberResponse)
 async def get_subscriber(
     telegram_user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_telegram_api_key)
 ):
     """
     Получить информацию о подписчике
@@ -125,7 +164,8 @@ async def get_subscriber(
 async def update_subscriber(
     telegram_user_id: int,
     update_data: TelegramSubscriberUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_telegram_api_key)
 ):
     """
     Обновить настройки подписки

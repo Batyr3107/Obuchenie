@@ -19,9 +19,18 @@ from telegram.ext import (
 # Настройки
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 API_URL = os.getenv("API_URL", "http://localhost:8000/api/v1")
+API_SECRET = os.getenv("TELEGRAM_API_SECRET", "")  # Required for secure API calls
 
 # Logger
 logger = logging.getLogger(__name__)
+
+# API Headers for secure communication
+def get_api_headers() -> dict:
+    """Get headers for API requests including authentication"""
+    headers = {"Content-Type": "application/json"}
+    if API_SECRET:
+        headers["X-Telegram-Bot-Secret"] = API_SECRET
+    return headers
 
 
 # ============ КОМАНДЫ ============
@@ -212,7 +221,7 @@ async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "notify_special_offers": False
         }
 
-        response = requests.post(f"{API_URL}/telegram/subscribe", json=subscriber_data)
+        response = requests.post(f"{API_URL}/telegram/subscribe", json=subscriber_data, headers=get_api_headers())
 
         if response.status_code == 201:
             await update.message.reply_text(
@@ -238,7 +247,7 @@ async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         # Отправляем запрос на API для отписки
-        response = requests.post(f"{API_URL}/telegram/unsubscribe/{user_id}")
+        response = requests.post(f"{API_URL}/telegram/unsubscribe/{user_id}", headers=get_api_headers())
 
         if response.status_code == 200:
             await update.message.reply_text("❌ Вы отписались от уведомлений.")

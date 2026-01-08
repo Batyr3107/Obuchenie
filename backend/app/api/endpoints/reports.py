@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
@@ -6,12 +6,15 @@ from app.models.user import User
 from app.api.dependencies.auth import get_current_active_user
 from app.schemas.report import ReportCreate
 from app.services.report_service import ReportService
+from app.core.rate_limit import limiter
 
 router = APIRouter()
 
 
 @router.post("/")
+@limiter.limit("10/day")  # Max 10 reports per day per user
 async def create_report(
+    request: Request,
     report_data: ReportCreate,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)

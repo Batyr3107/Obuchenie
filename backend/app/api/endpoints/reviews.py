@@ -4,7 +4,7 @@ Reviews API Endpoints
 REFACTORED: Вынесена вся бизнес-логика в ReviewService
 для улучшения читаемости, тестируемости и поддерживаемости
 """
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -15,6 +15,7 @@ from app.schemas.review import ReviewCreate, ReviewUpdate, ReviewResponse
 from app.api.dependencies.auth import get_current_active_user
 from app.services.review_service import ReviewService
 from app.utils.json_helpers import batch_parse_json_fields
+from app.core.rate_limit import limiter
 
 router = APIRouter()
 
@@ -45,7 +46,9 @@ async def get_reviews(
 
 
 @router.post("/", response_model=ReviewResponse, status_code=201)
+@limiter.limit("5/day")  # Max 5 reviews per day per user
 async def create_review(
+    request: Request,
     review_data: ReviewCreate,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
@@ -65,7 +68,9 @@ async def create_review(
 
 
 @router.put("/{review_id}", response_model=ReviewResponse)
+@limiter.limit("10/hour")  # Max 10 updates per hour
 async def update_review(
+    request: Request,
     review_id: int,
     review_data: ReviewUpdate,
     current_user: User = Depends(get_current_active_user),
@@ -85,7 +90,9 @@ async def update_review(
 
 
 @router.delete("/{review_id}", status_code=204)
+@limiter.limit("10/hour")  # Max 10 deletes per hour
 async def delete_review(
+    request: Request,
     review_id: int,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)

@@ -184,6 +184,7 @@ class Settings(BaseSettings):
 
     # ============= Telegram Bot =============
     TELEGRAM_BOT_TOKEN: Optional[str] = Field(default=None, description="Telegram bot token")
+    TELEGRAM_API_SECRET: Optional[str] = Field(default=None, description="API secret for bot-to-backend authentication")
     TELEGRAM_ADMIN_IDS: List[int] = Field(default=[], description="Telegram admin chat IDs")
     ENABLE_TELEGRAM: bool = Field(default=False, description="Enable Telegram bot")
 

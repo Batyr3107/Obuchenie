@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -7,6 +7,7 @@ from app.models.user import User
 from app.schemas.course import CourseListItem
 from app.api.dependencies.auth import get_current_active_user
 from app.services.favorite_service import FavoriteService
+from app.core.rate_limit import limiter
 
 router = APIRouter()
 
@@ -27,7 +28,9 @@ async def get_favorites(
 
 
 @router.post("/{course_id}")
+@limiter.limit("50/hour")  # Max 50 favorites per hour
 async def add_to_favorites(
+    request: Request,
     course_id: int,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
@@ -42,7 +45,9 @@ async def add_to_favorites(
 
 
 @router.delete("/{course_id}")
+@limiter.limit("50/hour")  # Max 50 unfavorites per hour
 async def remove_from_favorites(
+    request: Request,
     course_id: int,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)

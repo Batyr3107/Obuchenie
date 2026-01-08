@@ -58,7 +58,7 @@ class ReportService:
             review_id=report_data.review_id,
             user_id=user_id,
             reason=report_data.reason,
-            comment=report_data.comment,
+            description=report_data.description,
             status=ReportStatus.PENDING
         )
 
